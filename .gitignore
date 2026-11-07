@@ -12,3 +12,12 @@ __pycache__/
 .env
 .venv/
 env/
+.pytest_cache/
+
+# Runtime Storage & Documents (Work Order 7)
+data/
+documents/
+*.db
+*.sqlite3
+tmp/
+
