@@ -7,6 +7,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 
 from app.config import settings
 from app.core.database import init_db
+from app.core.job_manager import JobManager
 from app.api.v1.router import api_router
 
 @asynccontextmanager
@@ -14,6 +15,8 @@ async def lifespan(app: FastAPI):
     # Initialize directory layout and database
     settings.init_directories()
     init_db()
+    # Recover any orphaned or interrupted jobs from previous restart (Work Order A-4)
+    JobManager.recover_on_startup()
     yield
 
 app = FastAPI(

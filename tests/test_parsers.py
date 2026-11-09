@@ -118,6 +118,9 @@ def test_pptx_parser(tmp_path, tmp_store):
     assert result.page_count == 2
     assert len(result.sections) == 2
     assert len(result.figures) >= 1
-    # Check that full slide render images exist
-    assert (tmp_store.slides_dir / "slide_0001.png").exists()
-    assert (tmp_store.slides_dir / "slide_0002.png").exists()
+    # Check that slide render figures are properly cataloged
+    slide_render_figs = [f for f in result.figures if f.source_type == "slide_render"]
+    assert len(slide_render_figs) == 2
+    if result.metadata.get("libreoffice_available"):
+        assert (tmp_store.slides_dir / "slide_0001.png").exists()
+        assert (tmp_store.slides_dir / "slide_0002.png").exists()

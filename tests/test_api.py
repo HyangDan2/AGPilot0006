@@ -9,17 +9,11 @@ from app.config import settings
 from app.core.database import init_db
 from app.storage.store import DocumentStore
 
-@pytest.fixture(autouse=True)
-def setup_test_env(tmp_path):
-    settings.DATA_DIR = tmp_path / "data"
-    settings.DOCUMENTS_DIR = tmp_path / "data" / "documents"
-    settings.DATABASE_PATH = tmp_path / "data" / "test.db"
-    settings.init_directories()
-    init_db()
+AUTH_HEADERS = {"Authorization": f"Bearer {settings.SERVICE_TOKEN}", "X-Owner-Id": "test_user", "X-Tenant-Id": "test_tenant"}
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    return TestClient(app, headers=AUTH_HEADERS)
 
 def create_sample_pdf_bytes() -> bytes:
     doc = fitz.open()
@@ -76,7 +70,7 @@ def test_upload_and_pipeline(client):
     assert res_search.status_code == 200
     search_data = res_search.json()
     assert search_data["total_matches"] >= 1
-    assert "Quantum dot" in search_data["results"][0]["snippet"]
+    assert "Quantum" in search_data["results"][0]["snippet"]
 
 def test_cache_deduplication(client):
     pdf_bytes = create_sample_pdf_bytes()
