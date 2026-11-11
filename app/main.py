@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -45,25 +45,39 @@ async def favicon_svg():
     return FileResponse(path, media_type="image/svg+xml") if path.exists() else None
 
 @app.get("/docs", include_in_schema=False)
-async def custom_swagger_ui_html():
+async def custom_swagger_ui_html(request: Request):
     """Custom styled Swagger documentation adhering to HD2Lab Dark Palette."""
+    orig_uri = request.headers.get("x-original-uri", "")
+    forwarded_prefix = request.headers.get("x-forwarded-prefix", "")
+    prefix = ""
+    if "/admin/agtools" in orig_uri or forwarded_prefix.startswith("/admin/agtools") or request.url.path.startswith("/admin/agtools") or "agtools" in str(request.headers.get("referer", "")):
+        prefix = "/admin/agtools"
+    openapi_url = f"{prefix}/openapi.json" if prefix else "./openapi.json"
+    swagger_favicon = f"{prefix}/favicon.svg" if prefix else "./favicon.svg"
     return get_swagger_ui_html(
-        openapi_url=app.openapi_url,
+        openapi_url=openapi_url,
         title=f"{settings.PROJECT_NAME} — API Docs",
         oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
-        swagger_favicon_url="/favicon.svg",
+        swagger_favicon_url=swagger_favicon,
     )
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def root():
+async def root(request: Request):
     """HD2Lab Brand Status & Dashboard Landing Page."""
+    orig_uri = request.headers.get("x-original-uri", "")
+    forwarded_prefix = request.headers.get("x-forwarded-prefix", "")
+    prefix = ""
+    if "/admin/agtools" in orig_uri or forwarded_prefix.startswith("/admin/agtools") or request.url.path.startswith("/admin/agtools") or "agtools" in str(request.headers.get("referer", "")):
+        prefix = "/admin/agtools"
+    favicon_href = f"{prefix}/favicon.svg" if prefix else "./favicon.svg"
+    docs_href = f"{prefix}/docs" if prefix else "docs"
     return f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HD2Lab | Document Intelligence</title>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="{favicon_href}" type="image/svg+xml">
   <style>
     :root {{
       --bg: #101110;
@@ -192,7 +206,7 @@ async def root():
         <div class="endpoint"><span class="method">POST</span> /api/v1/documents/{{id}}/search - FTS 키워드 검색</div>
       </div>
 
-      <a href="/docs" class="btn">Explore OpenAPI Docs →</a>
+      <a href="{docs_href}" class="btn">Explore OpenAPI Docs →</a>
     </div>
   </div>
 </body>
