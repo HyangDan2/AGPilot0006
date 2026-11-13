@@ -65,6 +65,11 @@ def test_upload_and_pipeline(client):
     sec_data = res_sec.json()
     assert "Quantum" in sec_data["content"] or "Quantum" in sec_data["title"]
 
+    # 4-1. Full text
+    res_text = client.get(f"/api/v1/documents/{doc_id}/text")
+    assert res_text.status_code == 200
+    assert "Quantum" in res_text.json()["text"]
+
     # 5. Search
     res_search = client.post(f"/api/v1/documents/{doc_id}/search", json={"query": "Quantum dot"})
     assert res_search.status_code == 200

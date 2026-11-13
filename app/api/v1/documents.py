@@ -140,6 +140,19 @@ async def get_document_outline(
         sections=sections_out
     )
 
+@router.get("/{id}/text")
+async def get_document_text(
+    id: str,
+    caller: CallerContext = Depends(get_current_caller)
+):
+    """Get complete parsed markdown text of the document."""
+    _get_authorized_doc(id, caller)
+    store = DocumentStore(id)
+    text = store.load_markdown()
+    if text is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document text not parsed yet")
+    return {"document_id": id, "text": text}
+
 @router.get("/{id}/sections/{section_id}", response_model=SectionNode)
 async def get_section_detail(
     id: str,
