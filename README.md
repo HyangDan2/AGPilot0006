@@ -32,6 +32,10 @@
 
 ## 3. 핵심 규칙 및 문서
 
+- [시스템 아키텍처 (docs/ARCHITECTURE.md)](docs/ARCHITECTURE.md): 파서 엔진, AST 계층 구조, 청킹 알고리즘 및 전체 시스템 설계
+- [API 명세 및 계약서 (docs/API_CONTRACT.md)](docs/API_CONTRACT.md): 전체 11개 REST 엔드포인트 상세 규격, 요청/응답 스키마, AGCore 연동 매핑
+- [운영 및 배포 가이드 (docs/OPERATIONS.md)](docs/OPERATIONS.md): systemd 서비스 관리, Nginx 리버스 프록시 연동, 환경변수 및 백업
+- [OpenAPI 스펙 JSON (docs/openapi.json)](docs/openapi.json): Swagger 및 자동화 클라이언트 연동용 전체 OpenAPI 3.1 스펙
 - [작업 규칙 (WORK_RULES.md)](WORK_RULES.md): 프로젝트 개발 원칙, 보안 지침, 브랜드 규칙, API 제약사항
 - [라이선스 감사 (THIRD_PARTY_LICENSES.md)](THIRD_PARTY_LICENSES.md): PyMuPDF(AGPL v3) 및 서드파티 라이선스 점검 보고서
 
