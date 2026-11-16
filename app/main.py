@@ -80,13 +80,17 @@ async def root(request: Request):
   <link rel="icon" href="{favicon_href}" type="image/svg+xml">
   <style>
     :root {{
-      --bg: #101110;
-      --text: #f2f1eb;
-      --muted: #a2a59c;
-      --line: #30322d;
-      --accent: #ff824f;
-      --card-bg: #1b1d19;
-      --card-border: #33362d;
+      color-scheme: light;
+      --bg: #FAFAFD;
+      --text: #1D192B;
+      --muted: #68627A;
+      --line: #E8E4F2;
+      --accent: #8B6CE8;
+      --accent-hover: #7655D9;
+      --accent-text: #6B4CD6;
+      --accent-soft: #F1ECFE;
+      --card-bg: #FFFFFF;
+      --card-border: #E8E4F2;
     }}
     body {{
       margin: 0;
@@ -149,17 +153,20 @@ async def root(request: Request):
     h1 {{
       font-size: 24px;
       margin: 0 0 12px 0;
-      color: var(--accent);
+      color: var(--accent-text);
     }}
     p {{
       color: var(--muted);
       line-height: 1.6;
     }}
+    .btn:hover {{
+      background: var(--accent-hover);
+    }}
     .btn {{
       display: inline-block;
       padding: 10px 18px;
       background: var(--accent);
-      color: #101110;
+      color: #FFFFFF;
       text-decoration: none;
       font-weight: 600;
       border-radius: 6px;
@@ -169,16 +176,17 @@ async def root(request: Request):
       margin-top: 20px;
       font-family: monospace;
       font-size: 13px;
-      background: #141613;
+      background: var(--accent-soft);
       padding: 14px;
       border-radius: 6px;
       border: 1px solid var(--line);
+      overflow-wrap: anywhere;
     }}
     .endpoint {{
       margin-bottom: 6px;
     }}
     .method {{
-      color: var(--accent);
+      color: var(--accent-text);
       font-weight: bold;
     }}
   </style>

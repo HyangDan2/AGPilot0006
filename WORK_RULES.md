@@ -45,19 +45,12 @@
 
 `AGPilot0002`의 HD2Lab 표준 비주얼 아이덴티티를 1:1로 준수합니다.
 
-1. **테마 컬러 팔레트**:
-   - **Dark Theme (기본)**:
-     - Background: `#101110`
-     - Foreground Text: `#f2f1eb`
-     - Muted Text: `#a2a59c`
-     - Lines & Borders: `#30322d`, `#45473f`
-     - Accent Primary: `#ff824f` (Hover: `#ff9b73`)
-     - Card Background: `#1b1d19`, `#22251f` (Border: `#33362d`)
-     - Olive Accent: `#82916c`, `#b9c3a7`
-   - **Light Theme**:
-     - Background: `#f4f5f0`
-     - Foreground Text: `#191b15`
-     - Accent: `#e5622d`
+1. **테마 컬러 팔레트 (Soft Iris · White & Violet)**:
+   - Background: `#FAFAFD`
+   - Panel: `#FFFFFF`, Soft Panel: `#F4F1FC`
+   - Foreground Text: `#1D192B`, Muted Text: `#68627A`
+   - Lines & Borders: `#E8E4F2`
+   - Accent Primary: `#8B6CE8` (Hover: `#7655D9`, Text `#6B4CD6`, Soft `#F1ECFE`)
 2. **브랜드 마크 & 로고**:
    - HD2Lab Skew Mark (`border: 3px solid var(--accent); transform: skewY(-23deg);`)
    - Favicon: `favicon.svg`, `favicon.ico`, `favicon-32x32.png`, `apple-touch-icon.png` (AGPilot0002 표준 에셋 탑재)
