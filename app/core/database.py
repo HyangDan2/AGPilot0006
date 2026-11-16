@@ -89,9 +89,28 @@ def init_db() -> None:
             # FTS5 fallback if disabled in custom sqlite builds
             pass
 
+        # 4. Persistent Vector Store for Hybrid RAG (cosine similarity via numpy BLOB)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS document_chunk_vectors (
+                document_id TEXT NOT NULL,
+                chunk_id TEXT NOT NULL,
+                dim INTEGER NOT NULL,
+                vector BLOB NOT NULL,
+                PRIMARY KEY (document_id, chunk_id)
+            );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vec_doc ON document_chunk_vectors(document_id);")
+
         conn.commit()
 
 class DocumentRepository:
+    @staticmethod
+    def update_parser_version(document_id: str, parser_version: str, cache_key: str) -> None:
+        with get_db_connection() as conn:
+            conn.execute('UPDATE documents SET parser_version=?, cache_key=? WHERE document_id=?',
+                         (parser_version, cache_key, document_id))
+            conn.commit()
+
     @staticmethod
     def create_document(
         document_id: str,

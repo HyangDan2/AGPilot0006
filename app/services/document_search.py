@@ -4,12 +4,13 @@ from typing import List, Dict, Any, Optional
 from fastapi import HTTPException, status
 from app.core.database import get_db_connection
 from app.models.document import SearchResponse, SearchResultItem, SourceLocation
+from app.services.vector_index import VectorIndexService
 from app.storage.store import DocumentStore
 
 class DocumentSearchService:
     @classmethod
     def index_document_chunks(cls, document_id: str, chunks: List[Dict[str, Any]]) -> None:
-        """Indexes or re-indexes document chunks into the SQLite FTS5 table."""
+        """Indexes or re-indexes document chunks into SQLite FTS5 and Vector DB."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -32,6 +33,12 @@ class DocumentSearchService:
                 # FTS table might not be active, fallback will handle searches
                 pass
 
+        try:
+            VectorIndexService.index_document_chunks(document_id, chunks)
+        except Exception:
+            # Never fail document parsing if vector indexing encounters an issue
+            pass
+
     @classmethod
     def search(
         cls,
@@ -41,8 +48,8 @@ class DocumentSearchService:
         max_snippet_chars: int = 300
     ) -> SearchResponse:
         """
-        Executes full-text keyword search for a document.
-        Uses FTS5 with BM25 ranking when available, and falls back to chunk scan.
+        Hybrid RAG search combining FTS5/BM25 keyword search and SQLite Vector DB
+        cosine similarity via Reciprocal Rank Fusion (RRF).
         """
         clean_query = query.strip()
         if not clean_query:
@@ -51,17 +58,75 @@ class DocumentSearchService:
         # Validate limit bounds
         limit = max(1, min(limit, 50))
 
-        # Check FTS5
-        results = cls._search_fts5(document_id, clean_query, limit, max_snippet_chars)
-        if results is None:
-            # Fallback
-            results = cls._search_fallback(document_id, clean_query, limit, max_snippet_chars)
+        # 1. Keyword search (FTS5 or fallback scan)
+        keyword_results = cls._search_fts5(document_id, clean_query, limit * 2, max_snippet_chars)
+        if keyword_results is None:
+            keyword_results = cls._search_fallback(document_id, clean_query, limit * 2, max_snippet_chars)
+
+        # 2. Vector similarity search (with automatic lazy backfill for existing docs)
+        vector_hits: List[tuple[str, float]] = []
+        try:
+            vector_hits = VectorIndexService.search_vectors(document_id, clean_query, limit=limit * 2)
+        except Exception:
+            vector_hits = []
+
+        if not vector_hits:
+            return SearchResponse(
+                document_id=document_id,
+                query=clean_query,
+                total_matches=len(keyword_results),
+                results=keyword_results[:limit],
+            )
+
+        # 3. Reciprocal Rank Fusion (RRF) combining keyword + semantic/subword ranks
+        rrf_k = 60.0
+        fused_scores: Dict[str, float] = {}
+        item_map: Dict[str, SearchResultItem] = {}
+
+        for rank, item in enumerate(keyword_results):
+            cid = item.chunk_id
+            fused_scores[cid] = fused_scores.get(cid, 0.0) + 1.0 / (rrf_k + rank + 1)
+            item_map[cid] = item
+
+        for rank, (cid, vec_score) in enumerate(vector_hits):
+            # Weight semantic/subword match slightly higher when keyword exact match is absent
+            fused_scores[cid] = fused_scores.get(cid, 0.0) + (1.0 / (rrf_k + rank + 1)) + (0.01 * max(0.0, vec_score))
+
+        # Materialize any vector-only hits from DocumentStore
+        missing_cids = [cid for cid in fused_scores if cid not in item_map]
+        if missing_cids:
+            chunks_map = {c["chunk_id"]: c for c in DocumentStore(document_id).load_chunks()}
+            terms = [t for t in re.sub(r'["*^:]', ' ', clean_query).split() if t]
+            for cid in missing_cids:
+                chk = chunks_map.get(cid)
+                if not chk:
+                    continue
+                content = chk.get("content", "")
+                source = SourceLocation(**chk["source"]) if "source" in chk else SourceLocation(type="unknown")
+                item_map[cid] = SearchResultItem(
+                    chunk_id=cid,
+                    section_id=chk.get("parent_section_id"),
+                    snippet=cls._extract_snippet(content, terms, max_snippet_chars),
+                    score=0.0,
+                    source=source,
+                    figure_ids=chk.get("figure_ids", []),
+                )
+
+        ranked_cids = sorted(
+            [cid for cid in fused_scores if cid in item_map],
+            key=lambda cid: fused_scores[cid],
+            reverse=True,
+        )
+        merged: List[SearchResultItem] = []
+        for cid in ranked_cids[:limit]:
+            item = item_map[cid]
+            merged.append(item.model_copy(update={"score": round(fused_scores[cid], 6)}))
 
         return SearchResponse(
             document_id=document_id,
             query=clean_query,
-            total_matches=len(results),
-            results=results[:limit]
+            total_matches=len(ranked_cids),
+            results=merged,
         )
 
     @classmethod
