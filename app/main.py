@@ -76,8 +76,22 @@ async def root(request: Request):
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#FAFAFD">
   <title>HD2Lab | Document Intelligence</title>
   <link rel="icon" href="{favicon_href}" type="image/svg+xml">
+  <!-- Theme bootstrap: shared hd2-theme (Navy & Lavender dark / Soft Iris light) -->
+  <script>
+    (function () {{
+      try {{
+        var theme = localStorage.getItem('hd2-theme');
+        if (theme !== 'dark' && theme !== 'light') theme = 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.colorScheme = theme;
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', theme === 'dark' ? '#0B1020' : '#FAFAFD');
+      }} catch (e) {{ /* storage unavailable: the light default still applies */ }}
+    }})();
+  </script>
   <style>
     :root {{
       color-scheme: light;
@@ -91,6 +105,25 @@ async def root(request: Request):
       --accent-soft: #F1ECFE;
       --card-bg: #FFFFFF;
       --card-border: #E8E4F2;
+      --on-accent: #FFFFFF;
+    }}
+    /* Navy & Lavender — the HD2Lab dark pair of Soft Iris Light. */
+    [data-theme="dark"] {{
+      color-scheme: dark;
+      --bg: #0B1020;
+      --panel: #12192E;
+      --panel-soft: #1A2340;
+      --text: #EEF2FF;
+      --muted: #94A3C4;
+      --line: #253154;
+      --line-strong: #344472;
+      --accent: #A78BFA;
+      --accent-hover: #8B6CE8;
+      --accent-text: #C4B5FD;
+      --accent-soft: rgba(167, 139, 250, 0.14);
+      --card-bg: #12192E;
+      --card-border: #253154;
+      --on-accent: #0B1020;
     }}
     body {{
       margin: 0;
@@ -166,7 +199,7 @@ async def root(request: Request):
       display: inline-block;
       padding: 10px 18px;
       background: var(--accent);
-      color: #FFFFFF;
+      color: var(--on-accent);
       text-decoration: none;
       font-weight: 600;
       border-radius: 6px;
@@ -188,6 +221,64 @@ async def root(request: Request):
     .method {{
       color: var(--accent-text);
       font-weight: bold;
+    }}
+    /* ── Floating Light/Dark toggle (fixed bottom-right, shared hd2-theme) ─── */
+    .theme-fab {{
+      position: fixed;
+      right: max(20px, env(safe-area-inset-right, 0px));
+      bottom: max(20px, env(safe-area-inset-bottom, 0px));
+      z-index: 900;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 15px;
+      border-radius: 999px;
+      background: var(--card-bg);
+      color: var(--text);
+      border: 1px solid var(--line);
+      box-shadow: 0 10px 26px rgba(11, 16, 32, 0.16);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+      transition: border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+      -webkit-tap-highlight-color: transparent;
+    }}
+    [data-theme="dark"] .theme-fab {{
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+    }}
+    .theme-fab:hover {{
+      border-color: var(--accent);
+      color: var(--accent-text);
+      transform: translateY(-1px);
+    }}
+    .theme-fab:active {{
+      transform: translateY(0);
+    }}
+    .theme-fab:focus-visible {{
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }}
+    .theme-fab-icon {{
+      display: inline-block;
+      font-size: 13px;
+      line-height: 1;
+    }}
+    .theme-fab-label {{
+      white-space: nowrap;
+    }}
+    @media (max-width: 767px) {{
+      .theme-fab {{
+        right: max(14px, env(safe-area-inset-right, 0px));
+        bottom: max(14px, env(safe-area-inset-bottom, 0px));
+        padding: 9px 13px;
+      }}
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      .theme-fab {{
+        transition: none;
+      }}
     }}
   </style>
 </head>
@@ -217,6 +308,49 @@ async def root(request: Request):
       <a href="{docs_href}" class="btn">Explore OpenAPI Docs →</a>
     </div>
   </div>
+
+  <!-- Floating Light/Dark toggle (Navy & Lavender) -->
+  <button id="themeFab" class="theme-fab" type="button" title="다크 모드로 전환" aria-label="다크 모드로 전환">
+    <span class="theme-fab-icon" aria-hidden="true">🌙</span>
+    <span class="theme-fab-label">다크</span>
+  </button>
+  <script>
+    (function () {{
+      var root = document.documentElement;
+      var fab = document.getElementById('themeFab');
+      function current() {{ return root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'; }}
+      function render(theme) {{
+        if (!fab) return;
+        var icon = fab.querySelector('.theme-fab-icon');
+        var label = fab.querySelector('.theme-fab-label');
+        var action = theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환';
+        if (icon) icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+        if (label) label.textContent = theme === 'dark' ? '라이트' : '다크';
+        fab.setAttribute('aria-label', action);
+        fab.setAttribute('title', action);
+        fab.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+      }}
+      function apply(theme) {{
+        root.setAttribute('data-theme', theme);
+        root.style.colorScheme = theme;
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', theme === 'dark' ? '#0B1020' : '#FAFAFD');
+        try {{ localStorage.setItem('hd2-theme', theme); }} catch (e) {{}}
+        render(theme);
+      }}
+      render(current());
+      if (fab) fab.addEventListener('click', function () {{ apply(current() === 'dark' ? 'light' : 'dark'); }});
+      window.addEventListener('storage', function (event) {{
+        if (event.key !== 'hd2-theme') return;
+        var next = event.newValue === 'dark' ? 'dark' : 'light';
+        if (next !== current()) {{
+          root.setAttribute('data-theme', next);
+          root.style.colorScheme = next;
+          render(next);
+        }}
+      }});
+    }})();
+  </script>
 </body>
 </html>
 """
