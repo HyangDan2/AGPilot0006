@@ -21,10 +21,10 @@
 ## 2. HD2Lab 브랜드 및 비주얼 규격
 
 본 프로젝트는 [AGPilot0002](https://github.com/HyangDan2/AGPilot0002) 및 [HD2Lab HQ](https://hd2lab.duckdns.org)의 시각 디자인 및 브랜드 규격을 준수합니다.
-- **Brand Colors**:
-  - Dark BG: `#101110`, Light BG: `#f4f5f0`
-  - Accent Primary: `#ff824f`
-  - Muted: `#a2a59c`, Lines: `#30322d`
+- **Brand Colors (Soft Iris · White & Violet)**:
+  - Background: `#FAFAFD`, Panel: `#FFFFFF`, Soft Panel: `#F4F1FC`
+  - Accent Primary: `#8B6CE8` (Hover: `#7655D9`, Text: `#6B4CD6`)
+  - Text: `#1D192B`, Muted: `#68627A`, Lines: `#E8E4F2`
 - **Brand Mark**: HD2Lab Geometric Skew Mark & Favicon 세트 내장 (`favicon.svg`, `favicon.ico`, `LOGO.png` 등)
 - **Header Eyebrow**: `06 / SERVE · DOCUMENT INTELLIGENCE SERVICE`
 
