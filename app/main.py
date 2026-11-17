@@ -222,7 +222,23 @@ async def root(request: Request):
       color: var(--accent-text);
       font-weight: bold;
     }}
-    /* ── Floating Light/Dark toggle (fixed bottom-right, shared hd2-theme) ─── */
+    /* ── Theme toggle icon: one monochrome sun/moon SVG (the Web-HQ mark) ─── */
+    /* The icon shows where the button takes you: light → moon, dark → sun. */
+    .theme-ic {{
+      display: none;
+      width: 19px;
+      height: 19px;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }}
+    [data-theme="light"] .theme-ic[data-icon="moon"],
+    [data-theme="dark"] .theme-ic[data-icon="sun"] {{
+      display: block;
+    }}
+    /* ── Floating icon-only Light/Dark toggle (44px circle, bottom-right) ─── */
     .theme-fab {{
       position: fixed;
       right: max(20px, env(safe-area-inset-right, 0px));
@@ -230,22 +246,23 @@ async def root(request: Request):
       z-index: 900;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 15px;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      padding: 0;
       border-radius: 999px;
       background: var(--card-bg);
       color: var(--text);
       border: 1px solid var(--line);
       box-shadow: 0 10px 26px rgba(11, 16, 32, 0.16);
-      font-family: inherit;
-      font-size: 12px;
-      font-weight: 700;
-      line-height: 1;
       cursor: pointer;
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
       transition: border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
       -webkit-tap-highlight-color: transparent;
     }}
     [data-theme="dark"] .theme-fab {{
+      background: rgba(18, 25, 46, 0.92);
       box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
     }}
     .theme-fab:hover {{
@@ -260,19 +277,10 @@ async def root(request: Request):
       outline: 2px solid var(--accent);
       outline-offset: 3px;
     }}
-    .theme-fab-icon {{
-      display: inline-block;
-      font-size: 13px;
-      line-height: 1;
-    }}
-    .theme-fab-label {{
-      white-space: nowrap;
-    }}
     @media (max-width: 767px) {{
       .theme-fab {{
         right: max(14px, env(safe-area-inset-right, 0px));
         bottom: max(14px, env(safe-area-inset-bottom, 0px));
-        padding: 9px 13px;
       }}
     }}
     @media (prefers-reduced-motion: reduce) {{
@@ -309,10 +317,10 @@ async def root(request: Request):
     </div>
   </div>
 
-  <!-- Floating Light/Dark toggle (Navy & Lavender) -->
-  <button id="themeFab" class="theme-fab" type="button" title="다크 모드로 전환" aria-label="다크 모드로 전환">
-    <span class="theme-fab-icon" aria-hidden="true">🌙</span>
-    <span class="theme-fab-label">다크</span>
+  <!-- Floating icon-only Light/Dark toggle (Navy & Lavender) -->
+  <button id="themeFab" class="theme-fab" type="button" title="다크 모드로 전환" aria-label="다크 모드로 전환" aria-pressed="false">
+    <svg class="theme-ic" data-icon="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.1"/><path d="M12 2.7v2.3M12 19v2.3M2.7 12h2.3M19 12h2.3M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4L17 7M7 17l-1.6 1.6"/></svg>
+    <svg class="theme-ic" data-icon="moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.4 14.4A8.6 8.6 0 0 1 9.6 3.6a8.6 8.6 0 1 0 10.8 10.8z"/></svg>
   </button>
   <script>
     (function () {{
@@ -321,11 +329,9 @@ async def root(request: Request):
       function current() {{ return root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'; }}
       function render(theme) {{
         if (!fab) return;
-        var icon = fab.querySelector('.theme-fab-icon');
-        var label = fab.querySelector('.theme-fab-label');
+        // Icon-only: CSS shows the icon of the theme a click leads to, so only
+        // the spoken label changes.
         var action = theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환';
-        if (icon) icon.textContent = theme === 'dark' ? '☀️' : '🌙';
-        if (label) label.textContent = theme === 'dark' ? '라이트' : '다크';
         fab.setAttribute('aria-label', action);
         fab.setAttribute('title', action);
         fab.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
