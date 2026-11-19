@@ -1,89 +1,129 @@
-# HD2Lab Document Intelligence Service (AGPilot0006)
+# HD²Lab Document Intelligence Service (AGPilot0006)
 
-> **독립 문서 파싱, 계층 구조화, 시각 정보 보존 및 REST Query API 서비스**  
-> *Version 2.0 — Phase 1.5 + Phase 2 완료*  
-> *PDF • DOCX • PPTX • 계층 구조 보존 • 전체 슬라이드 렌더링 • 원본 에셋 추출 • AGPilot0005 연동*
-
----
-
-## 1. 개요 (Overview)
-
-**HD2Lab Document Intelligence Service**는 비정형 문서(PDF, DOCX, PPTX)를 LLM 및 AI 에이전트(AGPilot0005)가 효율적으로 이해하고 Tool Calling을 통해 온디맨드로 조회할 수 있도록 파싱·구조화·보관·검색하는 독립 백엔드 서비스입니다.
-
-문서 전체를 거대한 단일 텍스트나 조잡한 Markdown으로 단순 변환하지 않고, 다음 핵심 정보를 엄격히 보존합니다:
-- **문서 계층 구조 (Document Tree)**: 장/절/단락/표/그림의 위계 관계 및 읽기 순서
-- **시각적 구성 보존**: 원본 삽입 이미지 파일 및 슬라이드/페이지 전체 고해상도 렌더링
-- **근거 연결 (Grounding)**: 본문 단락과 시각 정보(Figure/Chart)의 유기적 매핑
-- **토큰 기반 청킹 (Token-Aware Chunking)**: 한국어/영어 문맥을 보존하며 최대 1500 토큰 엄격 준수
+> **Standalone document parsing, hierarchical structuring and query API**
+> *Version 2.0 • PDF • DOCX • PPTX • hierarchy preservation • full-slide rendering • original asset extraction • AGCore (AGPilot0005) integration*
 
 ---
 
-## 2. HD2Lab 브랜드 및 비주얼 규격
+## 1. Overview
 
-본 프로젝트는 [AGPilot0002](https://github.com/HyangDan2/AGPilot0002) 및 [HD2Lab HQ](https://hd2lab.duckdns.org)의 시각 디자인 및 브랜드 규격을 준수합니다.
-- **Brand Colors (Soft Iris · White & Violet)**:
-  - Background: `#FAFAFD`, Panel: `#FFFFFF`, Soft Panel: `#F4F1FC`
-  - Accent Primary: `#8B6CE8` (Hover: `#7655D9`, Text: `#6B4CD6`)
-  - Text: `#1D192B`, Muted: `#68627A`, Lines: `#E8E4F2`
-- **Brand Mark**: HD2Lab Geometric Skew Mark & Favicon 세트 내장 (`favicon.svg`, `favicon.ico`, `LOGO.png` 등)
-- **Header Eyebrow**: `06 / SERVE · DOCUMENT INTELLIGENCE SERVICE`
+**HD²Lab Document Intelligence Service** is an independent backend that parses, structures, stores and serves unstructured documents so that an LLM or agent (AGPilot0005) can understand them and query them on demand through tool calls.
 
----
+Instead of flattening a document into one blob of text or rough Markdown, it preserves:
 
-## 3. 핵심 규칙 및 문서
+- **Document tree** — chapters, sections, paragraphs, tables and figures with their hierarchy and reading order
+- **Visual composition** — original embedded images plus high-resolution renders of whole pages and slides
+- **Grounding** — the mapping between body text and the figures or charts it refers to
+- **Token-aware chunking** — target 1,000 tokens, hard ceiling 1,500, 100-token overlap, so Korean and English context survives
 
-- [시스템 아키텍처 (docs/ARCHITECTURE.md)](docs/ARCHITECTURE.md): 파서 엔진, AST 계층 구조, 청킹 알고리즘 및 전체 시스템 설계
-- [API 명세 및 계약서 (docs/API_CONTRACT.md)](docs/API_CONTRACT.md): 전체 11개 REST 엔드포인트 상세 규격, 요청/응답 스키마, AGCore 연동 매핑
-- [운영 및 배포 가이드 (docs/OPERATIONS.md)](docs/OPERATIONS.md): systemd 서비스 관리, Nginx 리버스 프록시 연동, 환경변수 및 백업
-- [OpenAPI 스펙 JSON (docs/openapi.json)](docs/openapi.json): Swagger 및 자동화 클라이언트 연동용 전체 OpenAPI 3.1 스펙
-- [작업 규칙 (WORK_RULES.md)](WORK_RULES.md): 프로젝트 개발 원칙, 보안 지침, 브랜드 규칙, API 제약사항
-- [라이선스 감사 (THIRD_PARTY_LICENSES.md)](THIRD_PARTY_LICENSES.md): PyMuPDF(AGPL v3) 및 서드파티 라이선스 점검 보고서
+Documents are parsed asynchronously: an upload returns a job id, and the client polls the status or reads the outline, sections, chunks, figures and manifest once parsing completes.
 
 ---
 
-## 4. 인증 및 접근 통제 (Authentication & Access Control)
+## 2. Features
 
-모든 API 호출은 서비스 토큰 인증과 Tenant/Owner 접근 제어를 거칩니다.
-
-- **인증 헤더**:
-  - `Authorization: Bearer <SERVICE_TOKEN>` 또는 `X-Service-Token: <SERVICE_TOKEN>`
-  - `X-Tenant-Id`: 테넌트 분리 (기본: `default_tenant`)
-  - `X-Owner-Id`: 소유자 분리 (기본: `default_user`)
-  - `X-Access-Scope`: 접근 범위 (`private`, `read_write`, `admin`)
-- **실패 응답**:
-  - 토큰 누락 또는 불일치 시 `401 Unauthorized`
-  - 타 테넌트 문서 접근 시 `404 Not Found` (문서 존재 유출 방지)
-  - 동일 테넌트 내 타인 소유 비공개 문서 접근 시 `403 Forbidden`
+- **Parsers** — PyMuPDF / `pymupdf4llm` for PDF, `python-docx` for DOCX and `python-pptx` for PPTX, dispatched by file type (`app/parsers/`). Page and slide rendering uses PyMuPDF, with an optional LibreOffice renderer (`LIBREOFFICE_PATH`) for formats that need it.
+- **Hierarchy engine** — builds the section tree and assigns each section its source location (page or slide) and connected figure ids.
+- **Hybrid retrieval** — `POST /api/v1/documents/{id}/search` combines SQLite FTS5 / BM25 keyword search with a SQLite vector index by cosine similarity, fused with reciprocal rank fusion, and returns snippets with source locations and figure ids. If either index is unavailable, the other path still answers.
+- **Asset preservation** — original figure binaries and page/slide renders are streamed directly, and every document has a manifest with its asset catalogue and checksums.
+- **Job management** — bounded concurrency (`MAX_CONCURRENT_JOBS`, default 4), a 300 s parsing timeout, and startup recovery for jobs interrupted by a restart.
+- **Security limits** — 100 MB upload ceiling, 500-page limit, ZIP entry/expansion ratio limits, id validation, and tenant/owner isolation.
 
 ---
 
-## 5. API 엔드포인트 명세 (API Contract)
+## 3. Brand and visual specification
 
-| 메서드 | 엔드포인트 | 설명 |
-| :--- | :--- | :--- |
-| `POST` | `/api/v1/documents` | 신규 문서 업로드(100MB 스트리밍 제한) 및 비동기 파싱 Job 등록 |
-| `GET`  | `/api/v1/documents/{id}` | 문서 메타데이터 조회 |
-| `GET`  | `/api/v1/documents/{id}/status` | 파싱 진행 상태 (queued, processing, completed, failed) |
-| `GET`  | `/api/v1/documents/{id}/outline` | 계층형 목차 및 섹션 목록 (limit, offset 페이지네이션 지원) |
-| `GET`  | `/api/v1/documents/{id}/sections/{section_id}` | 특정 섹션 본문 및 관련 Figure ID |
-| `GET`  | `/api/v1/documents/{id}/chunks/{chunk_id}` | 토큰 한도 준수 단일 청크 상세 조회 |
-| `GET`  | `/api/v1/documents/{id}/figures/{figure_id}` | 시각 객체 메타데이터 및 캡션 |
-| `GET`  | `/api/v1/documents/{id}/figures/{figure_id}/asset` | 원본 이미지 / 슬라이드 렌더링 이미지 바이너리 스트리밍 |
-| `GET`  | `/api/v1/documents/{id}/assets/{asset_id}` | 시각 에셋 직접 조회 엔드포인트 |
-| `GET`  | `/api/v1/documents/{id}/manifest` | 에셋 카탈로그 및 문서 전체 Manifest 조회 |
-| `POST` | `/api/v1/documents/{id}/search` | SQLite FTS5 기반 키워드 검색 및 스니펫 하이라이팅 |
+The service follows the HD2Lab design system used by [AGPilot0002](https://github.com/HyangDan2/AGPilot0002) and [HD2Lab HQ](https://hd2lab.duckdns.org):
+
+- **Soft Iris light / Navy & Lavender dark** tokens driven by the shared `hd2-theme` key, applied before first paint
+- HD2Lab geometric skew mark and favicon set (`favicon.svg`, `favicon.ico`, `LOGO.png`)
+- Header eyebrow `06 / SERVE · DOCUMENT INTELLIGENCE SERVICE`
+- A branded status/dashboard landing page at `/`, and Swagger UI at `/docs` themed for the HD2Lab palette; both work behind the `/admin/agtools` reverse-proxy prefix
 
 ---
 
-## 6. 실행 및 테스트
+## 4. Running and testing
 
-### 개발 서버 실행
 ```bash
-python server.py
-# 서비스가 http://127.0.0.1:8006 에서 실행됩니다.
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+python3 server.py          # http://127.0.0.1:8006
+.venv/bin/pytest -v        # 12 test modules
 ```
 
-### 테스트 실행 (QA-01 ~ QA-16 전체 32종 테스트)
-```bash
-.venv/bin/pytest -v
-```
+- Landing page: http://127.0.0.1:8006/
+- Swagger UI: http://127.0.0.1:8006/docs
+- OpenAPI schema: http://127.0.0.1:8006/openapi.json
+
+The test suite covers the API, auth and security, the parsers, hierarchy, chunking, rendering, resource limits, job recovery, cache integrity, search/timeouts and hybrid RAG search.
+
+---
+
+## 5. Authentication and access control
+
+Every API call is checked against the service token and a tenant/owner scope.
+
+| Header | Purpose |
+| --- | --- |
+| `Authorization: Bearer <token>` or `X-Service-Token: <token>` | Service authentication (`DOCUMENT_SERVICE_TOKEN`) |
+| `X-Tenant-Id` | Tenant isolation (default `default_tenant`) |
+| `X-Owner-Id` | Owner isolation (default `default_user`) |
+| `X-Access-Scope` | `private`, `read_write` or `admin`; `admin` bypasses document-level checks |
+
+Failure behaviour: a missing or wrong token returns `401 Unauthorized`; a document from another tenant returns `404 Not Found` (so its existence is not disclosed); another owner's private document inside the same tenant returns `403 Forbidden`.
+
+---
+
+## 6. API
+
+Base path `/api/v1`.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/documents` | Upload a document (100 MB streaming limit) and queue an asynchronous parse job (`202`) |
+| `GET` | `/documents/{id}` | Document metadata and current status |
+| `GET` | `/documents/{id}/status` | Parsing status: `queued`, `processing`, `completed`, `failed` |
+| `GET` | `/documents/{id}/outline` | Hierarchical outline and section list (`limit`, `offset`, max 500 per page) |
+| `GET` | `/documents/{id}/text` | Complete parsed document as Markdown |
+| `GET` | `/documents/{id}/sections/{section_id}` | Section body, connected figure ids and table counts |
+| `GET` | `/documents/{id}/chunks/{chunk_id}` | Single chunk body, token count and source location |
+| `GET` | `/documents/{id}/figures/{figure_id}` | Figure metadata and caption |
+| `GET` | `/documents/{id}/figures/{figure_id}/asset` | Original image or page/slide render (binary stream) |
+| `GET` | `/documents/{id}/assets/{asset_id}` | Direct named-asset access |
+| `GET` | `/documents/{id}/manifest` | Asset catalogue and document manifest with checksums |
+| `POST` | `/documents/{id}/search` | Hybrid keyword + vector search with snippets and source grounding (`query`, `limit` 1–50) |
+
+Request/response schemas, error codes and the AGPilot0005 mapping are in [docs/API_CONTRACT.md](docs/API_CONTRACT.md); the generated spec is [docs/openapi.json](docs/openapi.json).
+
+### AGCore mapping
+
+AGPilot0005 exposes these calls as the `document.*` tools: `get_outline`, `read_section`, `search`, `read_chunk` and `get_figure_info`. The adapter contract is documented in AGPilot0005's `docs/TOOL_ADAPTER_CONTRACT_AGPILOT0006.md`.
+
+---
+
+## 7. Configuration
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `APP_ENV` | `development` | `development`, `test` or `production` |
+| `HD2_DATA_DIR` | `./data` | Root of `documents/` and `metadata.sqlite3` |
+| `DOCUMENT_SERVICE_TOKEN` | — | Service token (set this in production) |
+| `AUTH_REQUIRED` | `true` | Enforce token authentication |
+| `BYPASS_AUTH_IN_DEV` | `false` | Skip auth in development only |
+| `PARSING_TIMEOUT_SECONDS`, `MAX_CONCURRENT_JOBS` | `300`, `4` | Parse budget and concurrency |
+| `LIBREOFFICE_PATH` | — | Optional LibreOffice binary for render fallback |
+
+Chunking defaults (`CHUNK_TARGET_TOKENS` 1,000, `CHUNK_MAX_TOKENS` 1,500, `CHUNK_OVERLAP_TOKENS` 100) and the file/page/ZIP limits live in `app/config.py`.
+
+---
+
+## 8. Documentation
+
+- [Architecture (docs/ARCHITECTURE.md)](docs/ARCHITECTURE.md) — parser engines, AST hierarchy, chunking, search and system design
+- [API contract (docs/API_CONTRACT.md)](docs/API_CONTRACT.md) — endpoint schemas, error codes and AGCore mapping
+- [Operations (docs/OPERATIONS.md)](docs/OPERATIONS.md) — systemd, Nginx, environment variables and backup
+- [OpenAPI schema (docs/openapi.json)](docs/openapi.json)
+- [Work rules (WORK_RULES.md)](WORK_RULES.md) — development principles, security and API constraints
+- [Third-party licence audit (THIRD_PARTY_LICENSES.md)](THIRD_PARTY_LICENSES.md) — PyMuPDF (AGPL v3) and other licences
+
+`hd2lab.manifest.json` registers the service with the Server-HQ admin hub at `/admin/agtools/`.
