@@ -99,7 +99,7 @@
     get('error-count').textContent = (counts.retry || 0) + (counts.failed || 0);
     get('done-count').textContent = counts.done || 0;
     get('worker').textContent = !queue.configured ? '색인 모델 미설정' : queue.paused
-      ? counts.running ? '현재 배치 완료 후 일시정지' : '색인 일시정지됨' : !settings?.enabled ? '의미 검색 설정으로 색인 대기' : '색인 실행 중';
+      ? counts.running ? '현재 배치 완료 후 일시정지' : '색인 일시정지됨' : counts.running ? '색인 실행 중' : '색인 대기 중';
     get('worker').toggleAttribute('data-paused', queue.paused);
     get('pause').textContent = queue.paused ? '색인 재개' : '색인 일시정지';
     get('pause').disabled = busy || !queue.configured;

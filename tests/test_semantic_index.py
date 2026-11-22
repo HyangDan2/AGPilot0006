@@ -36,6 +36,7 @@ def test_model_index_fallback_and_admin_settings(monkeypatch):
         body = {"enabled": True, "min_similarity": 0.4}
         assert client.put(settings_url, headers=headers, json={**body, "min_similarity": 1.1}).status_code == 422
         assert client.put(settings_url, headers=headers, json=body).json()["enabled"] is True
+        semantic_index.set_paused(False)
 
         DocumentRepository.create_document("doc_abc", "test.pdf", "hash", "pdf", "application/pdf", 10)
         DocumentStore("doc_abc").save_parsed_data({}, "", [chunk])
@@ -67,6 +68,7 @@ def test_partial_index_resumes_after_failure(monkeypatch):
     with get_db_connection() as conn:
         semantic_index.init_schema(conn)
     semantic_index.save_settings(True, 0.4)
+    semantic_index.set_paused(False)
     DocumentRepository.create_document("doc_resume", "test.pdf", "hash", "pdf", "application/pdf", 10)
     chunks = [{"chunk_id": f"chunk_{index}", "content": f"paragraph {index}"} for index in range(3)]
     DocumentStore("doc_resume").save_parsed_data({}, "", chunks)
@@ -124,6 +126,14 @@ def test_queue_controls_preserve_existing_search(monkeypatch):
         assert client.put(url, json={"paused": True}, headers=headers).is_success
         assert semantic_index.search("doc_queue", "search query", 1) == [("chk_1", 1.0)]
         assert client.post(url + "/doc_queue", json={"action": "cancel"}, headers=headers).status_code == 409
+        client.put("/api/v1/settings/embeddings", json={"enabled": False, "min_similarity": 0.4}, headers=headers).raise_for_status()
+        DocumentRepository.create_document("doc_disabled", "second.pdf", "hash", "pdf", "application/pdf", 10)
+        DocumentStore("doc_disabled").save_parsed_data({}, "", [{"chunk_id": "chk_2", "content": "new evidence"}])
+        DocumentRepository.update_status("doc_disabled", "completed")
+        assert not client.put(url, json={"paused": False}, headers=headers).json()["paused"]
+        assert semantic_index.index_next_batch()
+        assert not client.get("/api/v1/settings/embeddings", headers=headers).json()["enabled"]
+        assert client.get(url + "?state=done", headers=headers).json()["total"] == 2
 
 
 def test_large_batch_defers_during_busy_hours(monkeypatch):
@@ -134,6 +144,7 @@ def test_large_batch_defers_during_busy_hours(monkeypatch):
     with get_db_connection() as conn:
         semantic_index.init_schema(conn)
     semantic_index.save_settings(True, 0.4)
+    semantic_index.set_paused(False)
     DocumentRepository.create_document("doc_long", "long.pdf", "hash", "pdf", "application/pdf", 10)
     DocumentStore("doc_long").save_parsed_data({}, "", [{"chunk_id":"chk_1", "content":"large body text"}])
     DocumentRepository.update_status("doc_long", "completed")

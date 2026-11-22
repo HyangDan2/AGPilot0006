@@ -114,6 +114,11 @@ def init_schema(conn: sqlite3.Connection) -> None:
             id INTEGER PRIMARY KEY CHECK (id = 1), paused INTEGER NOT NULL
         )
     """)
+    # Preserve the effective worker state once, then manage it independently.
+    conn.execute("""
+        INSERT OR IGNORE INTO semantic_queue_control VALUES
+        (1, 1 - COALESCE((SELECT enabled FROM semantic_settings WHERE id=1),0))
+    """)
 
 
 def read_settings(conn: sqlite3.Connection) -> tuple[bool, float]:
@@ -255,7 +260,7 @@ def _claim_batch():
     quiet = quiet_hours()
     with get_db_connection() as conn:
         conn.execute("BEGIN IMMEDIATE")
-        if is_paused(conn) or not read_settings(conn)[0]:
+        if is_paused(conn):
             return None
         if conn.execute("SELECT 1 FROM semantic_documents WHERE lease_until > ? LIMIT 1", (now,)).fetchone():
             return None
