@@ -15,6 +15,7 @@ DEFAULT_VECTOR_DIM = 512
 EMBEDDING_URL = os.environ.get("AGTOOLS_EMBEDDING_URL", "").strip()
 EMBEDDING_MODEL = os.environ.get("AGTOOLS_EMBEDDING_MODEL", "text-embedding-3-small").strip()
 EMBEDDING_API_KEY = os.environ.get("AGTOOLS_EMBEDDING_API_KEY", "").strip()
+OLLAMA_NUM_GPU = os.getenv("AGTOOLS_EMBEDDING_OLLAMA_NUM_GPU", "").strip()
 
 
 def _signed_hash_embed(text: str, dim: int = DEFAULT_VECTOR_DIM) -> np.ndarray:
@@ -47,30 +48,45 @@ def _signed_hash_embed(text: str, dim: int = DEFAULT_VECTOR_DIM) -> np.ndarray:
     return vec
 
 
-def _remote_embed_batch(texts: List[str]) -> Optional[List[np.ndarray]]:
-    """Optional external OpenAI-compatible embedding endpoint when AGTOOLS_EMBEDDING_URL is set."""
+def remote_embed_batch(texts: List[str], timeout: float = 10.0) -> Optional[List[np.ndarray]]:
+    """Call the configured Ollama or OpenAI-compatible endpoint."""
     if not EMBEDDING_URL or not texts:
         return None
     headers = {"Content-Type": "application/json"}
     if EMBEDDING_API_KEY:
         headers["Authorization"] = f"Bearer {EMBEDDING_API_KEY}"
+    payload = {"model": EMBEDDING_MODEL, "input": [t[:4000] for t in texts]}
+    ollama = EMBEDDING_URL.endswith("/api/embed")
+    if ollama:
+        payload.update(keep_alive="5m", truncate=True)
+        if OLLAMA_NUM_GPU:
+            payload["options"] = {"num_gpu": int(OLLAMA_NUM_GPU)}
     try:
         resp = httpx.post(
             EMBEDDING_URL,
-            json={"model": EMBEDDING_MODEL, "input": [t[:4000] for t in texts]},
+            json=payload,
             headers=headers,
-            timeout=10.0,
+            timeout=timeout,
+            trust_env=False,
         )
         resp.raise_for_status()
-        data = resp.json().get("data", [])
-        if len(data) != len(texts):
+        data = resp.json()
+        if ollama:
+            embeddings = data["embeddings"]
+        else:
+            items = sorted(data["data"], key=lambda item: item["index"])
+            if [item["index"] for item in items] != list(range(len(texts))):
+                return None
+            embeddings = [item["embedding"] for item in items]
+        if len(embeddings) != len(texts):
             return None
         vectors: List[np.ndarray] = []
-        for item in sorted(data, key=lambda x: x.get("index", 0)):
-            arr = np.asarray(item["embedding"], dtype=np.float32)
+        for embedding in embeddings:
+            arr = np.asarray(embedding, dtype=np.float32)
             norm = float(np.linalg.norm(arr))
-            if norm > 0.0:
-                arr /= norm
+            if arr.ndim != 1 or not np.isfinite(norm) or norm <= 0.0:
+                return None
+            arr /= norm
             vectors.append(arr)
         return vectors
     except Exception:
@@ -78,14 +94,14 @@ def _remote_embed_batch(texts: List[str]) -> Optional[List[np.ndarray]]:
 
 
 def embed_texts(texts: List[str]) -> List[np.ndarray]:
-    remote = _remote_embed_batch(texts)
+    remote = remote_embed_batch(texts)
     if remote is not None:
         return remote
     return [_signed_hash_embed(t) for t in texts]
 
 
 def embed_query(query: str) -> np.ndarray:
-    remote = _remote_embed_batch([query])
+    remote = remote_embed_batch([query])
     if remote is not None and len(remote) == 1:
         return remote[0]
     return _signed_hash_embed(query)

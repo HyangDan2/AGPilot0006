@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 from fastapi import HTTPException, status
 from app.core.database import get_db_connection
 from app.models.document import SearchResponse, SearchResultItem, SourceLocation
+from app.services import semantic_index
 from app.services.vector_index import VectorIndexService
 from app.storage.store import DocumentStore
 
@@ -34,7 +35,8 @@ class DocumentSearchService:
                 pass
 
         try:
-            VectorIndexService.index_document_chunks(document_id, chunks)
+            if not semantic_index.managed():
+                VectorIndexService.index_document_chunks(document_id, chunks)
         except Exception:
             # Never fail document parsing if vector indexing encounters an issue
             pass
@@ -66,7 +68,10 @@ class DocumentSearchService:
         # 2. Vector similarity search (with automatic lazy backfill for existing docs)
         vector_hits: List[tuple[str, float]] = []
         try:
-            vector_hits = VectorIndexService.search_vectors(document_id, clean_query, limit=limit * 2)
+            if semantic_index.managed():
+                vector_hits = semantic_index.search(document_id, clean_query, limit * 2)
+            else:
+                vector_hits = VectorIndexService.search_vectors(document_id, clean_query, limit=limit * 2)
         except Exception:
             vector_hits = []
 

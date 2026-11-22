@@ -120,3 +120,16 @@ sqlite3 /var/www/services/AGTools/data/metadata.sqlite3 ".backup /backup/agtools
    ```bash
    sqlite3 /var/www/services/AGTools/data/metadata.sqlite3 "SELECT job_id, document_id, status, error_message FROM jobs WHERE status != 'completed';"
    ```
+
+## AGTools 관리자 임베딩 설정
+
+- 운영 관리자 화면은 `/admin/agtools/`입니다. 브라우저는 `GET /admin/agtools/api/v1/settings/embeddings`로 단일 모델, 유사도 설정, 색인 완료·대기·재시도 문서 수를 조회합니다. 같은 주소에 `PUT`으로 `{"enabled":true,"min_similarity":0.4}`를 보내면 즉시 적용됩니다. 운영 프록시는 공통 SSO와 서비스 관리 권한을 요구하며, 저장에는 SSO의 Origin 및 CSRF 확인을 적용합니다.
+- 관리자는 의미 검색 활성화 여부와 최소 코사인 유사도(0~1)를 설정합니다. 모델과 업스트림은 서버 환경의 `AGTOOLS_EMBEDDING_URL`, `AGTOOLS_EMBEDDING_MODEL`, `AGTOOLS_EMBEDDING_REVISION`으로 지정합니다. Ollama 네이티브 API에서는 모델 목록의 digest를 revision과 대조합니다.
+- 백그라운드 색인은 완료된 문서의 기존 청크를 배치 단위로 처리합니다. 재시도 시 성공한 배치 다음부터 재개합니다. 문서 버전이나 임베딩 모델 revision이 바뀌면 새로 색인합니다. 임베딩을 끄거나 색인이 대기 중이거나 모델 요청이 실패하면 기존 키워드 검색으로 응답합니다.
+- `POST /api/v1/documents/{id}/search`의 AGCore 요청·응답 계약과 문서 접근 제어는 그대로 사용합니다. 검색 결과의 청크 ID와 원문 위치를 기존 응답 필드로 제공합니다.
+
+## 문서 색인 작업 큐
+
+관리자 홈 `/admin/agtools/`는 색인 작업을 기본으로 표시하며 검색 설정을 분리합니다. `GET /api/v1/settings/embeddings/queue`는 상태 필터와 페이지네이션을 지원합니다. `PUT`의 `{"paused":true}`는 실행 중인 배치를 마친 뒤 새 배치를 막습니다. `POST /api/v1/settings/embeddings/queue/{document_id}`는 `{"action":"retry"}` 또는 `{"action":"cancel"}`을 받습니다. 취소는 대기 작업에 적용하며 문서는 그대로 보관합니다.
+
+색인 워커는 SQLite에 작업 소유권과 체크포인트를 저장합니다. 오류가 연속 세 번 발생하면 실패로 표시하고 관리자가 재시도할 수 있습니다. 실시간 검색이 대기 중이면 새 색인 배치를 시작하지 않습니다. 기본 한산 시간대는 한국 시간 01:00–06:00입니다. 이외 시간에는 최대 550 추정 단위부터 시작해 관측 지연으로 배치 허용량을 낮춥니다. 한산 시간과 상한은 `AGTOOLS_INDEX_QUIET_FROM`, `AGTOOLS_INDEX_QUIET_UNTIL`, `AGTOOLS_INDEX_DAY_BATCH_UNITS`로 지정합니다. 숫자는 토크나이저 실측값 대신 색인 입력량을 제한하는 추정 단위입니다.

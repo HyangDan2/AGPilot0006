@@ -249,7 +249,7 @@ async def get_document_manifest(
     return manifest
 
 @router.post("/{id}/search", response_model=SearchResponse)
-async def search_document(
+def search_document(
     id: str,
     body: SearchRequest,
     caller: CallerContext = Depends(get_current_caller)

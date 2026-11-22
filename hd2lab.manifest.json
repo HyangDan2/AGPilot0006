@@ -3,8 +3,8 @@
   "endpoints": [
     {
       "slug": "agtools",
-      "title": "AGTools (0006)",
-      "description": "문서 인텔리전스 · 파싱 & 쿼리 도구",
+      "title": "문서 색인 관리",
+      "description": "AGTools 색인 작업 진행률과 의미 검색 설정",
       "href": "/admin/agtools/",
       "category_slug": "ai",
       "hub_publish": false,

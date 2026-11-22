@@ -28,7 +28,8 @@ def test_root_page(client):
     response = client.get("/")
     assert response.status_code == 200
     assert "HD2Lab" in response.text
-    assert "Document Intelligence API is Active" in response.text
+    assert "문서 색인 관리" in response.text
+    assert client.get("/admin-assets/indexing-console.js").status_code == 200
 
 def test_upload_and_pipeline(client):
     pdf_bytes = create_sample_pdf_bytes()

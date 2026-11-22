@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#FAFAFD">
+<title>문서 색인 관리 · HD2Lab</title><link rel="icon" href="./favicon.svg">
+<link rel="stylesheet" href="./admin-assets/indexing-console.css">
+<script src="./admin-assets/indexing-console.js" defer></script></head><body>
+<div id="agtools-queue-preview" lang="ko">
+  <header class="aq-bar">
+    <a class="aq-brand" href="/admin/"><span class="aq-mark" aria-hidden="true"></span><span>HD2Lab <small>관리자</small></span></a>
+    <a class="aq-sample" href="./docs">API 문서</a>
+  </header>
+  <div class="aq-shell">
+    <nav class="aq-nav" aria-label="문서 색인 관리">
+      <span class="aq-nav-label">AGTools</span>
+      <button type="button" data-view="queue" aria-current="page">색인 작업</button>
+      <button type="button" data-view="settings">검색 설정</button>
+    </nav>
+    <main class="aq-main">
+      <div id="aq-queue">
+        <div class="aq-header">
+          <div><h1>문서 색인 관리</h1><div class="aq-sub"><b id="aq-worker">색인 상태 확인 중</b><span id="aq-search-status">검색 상태 확인 중</span></div></div>
+          <button type="button" id="aq-pause" class="aq-button" disabled>색인 일시정지</button>
+        </div>
+        <div class="aq-metrics" aria-label="색인 상태별 작업 수">
+          <div><span>처리 중</span><strong id="aq-running-count">—</strong></div>
+          <div><span>대기</span><strong id="aq-wait-count">—</strong></div>
+          <div><span>재시도·실패</span><strong id="aq-error-count">—</strong></div>
+          <div><span>완료</span><strong id="aq-done-count">—</strong></div>
+        </div>
+        <section class="aq-panel" aria-labelledby="aq-jobs-title">
+          <div class="aq-panel-head"><h2 id="aq-jobs-title">최근 색인 작업</h2><label>상태 <select id="aq-filter"><option value="all">전체</option><option value="running">처리 중</option><option value="waiting">대기</option><option value="issues">재시도·실패</option><option value="done">완료</option><option value="cancelled">취소됨</option></select></label></div>
+          <div class="aq-table-wrap">
+            <table><thead><tr><th scope="col">문서</th><th scope="col">상태</th><th scope="col">진행률</th><th scope="col">등록</th></tr></thead><tbody id="aq-rows"></tbody></table>
+          </div>
+          <p id="aq-empty" hidden>이 상태의 작업이 없습니다.</p>
+          <div class="aq-pagination" id="aq-pagination" hidden>
+            <button type="button" class="aq-button" id="aq-prev">이전</button><span id="aq-page"></span>
+            <button type="button" class="aq-button" id="aq-next">다음</button>
+          </div>
+        </section>
+        <section class="aq-panel aq-detail" id="aq-detail" hidden aria-label="선택한 작업 상세"></section>
+      </div>
+      <section id="aq-settings" hidden aria-labelledby="aq-settings-title">
+        <div class="aq-header"><div><h1 id="aq-settings-title">검색 설정</h1><div class="aq-sub"><span id="aq-model"></span></div></div></div>
+        <form class="aq-panel aq-settings" id="aq-form">
+          <label class="aq-field"><span><strong>의미 검색</strong><small>사용자 질문의 벡터 검색을 켭니다.</small></span><input type="checkbox" id="aq-semantic" disabled></label>
+          <label class="aq-field"><span><strong>최소 유사도</strong><small>의미 검색 결과에 포함할 기준입니다.</small></span><input type="number" id="aq-threshold" value="0.40" disabled min="0" max="1" step="0.01" required></label>
+          <button type="submit" class="aq-button aq-primary" disabled>설정 저장</button>
+        </form>
+      </section>
+      <div class="aq-message" id="aq-message" role="status" aria-live="polite"></div>
+    </main>
+  </div>
+</div>
+  <button id="themeFab" class="theme-fab" type="button" title="다크 모드로 전환" aria-label="다크 모드로 전환" aria-pressed="false">
+    <svg class="theme-ic" data-icon="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.1"/><path d="M12 2.7v2.3M12 19v2.3M2.7 12h2.3M19 12h2.3M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4L17 7M7 17l-1.6 1.6"/></svg>
+    <svg class="theme-ic" data-icon="moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.4 14.4A8.6 8.6 0 0 1 9.6 3.6a8.6 8.6 0 1 0 10.8 10.8z"/></svg>
+  </button>
+</body></html>
