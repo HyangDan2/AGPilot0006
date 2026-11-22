@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#FAFAFD">
-<title>문서 색인 관리 · HD2Lab</title><link rel="icon" href="./favicon.svg">
+<title>AGTools · HD2Lab</title><link rel="icon" href="./favicon.svg">
 <link rel="stylesheet" href="./admin-assets/indexing-console.css">
 <script src="./admin-assets/indexing-console.js" defer></script></head><body>
 <div id="agtools-queue-preview" lang="ko">
@@ -10,15 +10,16 @@
     <a class="aq-sample" href="./docs">API 문서</a>
   </header>
   <div class="aq-shell">
-    <nav class="aq-nav" aria-label="문서 색인 관리">
+    <nav class="aq-nav" aria-label="AGTools">
       <span class="aq-nav-label">AGTools</span>
       <button type="button" data-view="queue" aria-current="page">색인 작업</button>
+      <button type="button" data-view="search">검색 현황</button>
       <button type="button" data-view="settings">검색 설정</button>
     </nav>
     <main class="aq-main">
       <div id="aq-queue">
         <div class="aq-header">
-          <div><h1>문서 색인 관리</h1><div class="aq-sub"><b id="aq-worker">색인 상태 확인 중</b><span id="aq-search-status">검색 상태 확인 중</span></div></div>
+          <div><h1>AGTools</h1><div class="aq-sub"><b id="aq-worker">색인 상태 확인 중</b><span id="aq-search-status">검색 상태 확인 중</span></div></div>
           <button type="button" id="aq-pause" class="aq-button" disabled>색인 일시정지</button>
         </div>
         <div class="aq-metrics" aria-label="색인 상태별 작업 수">
@@ -40,12 +41,95 @@
         </section>
         <section class="aq-panel aq-detail" id="aq-detail" hidden aria-label="선택한 작업 상세"></section>
       </div>
+      <section id="aq-search" hidden aria-labelledby="aq-search-title">
+        <div class="aq-header">
+          <div>
+            <h1 id="aq-search-title">검색 엔진 현황</h1>
+            <div class="aq-sub"><span id="aq-hybrid-summary">문서 하이브리드(FTS5+RRF) · 웹 검색 엔진</span></div>
+          </div>
+          <button type="button" id="aq-fts-backfill" class="aq-button">FTS5 일괄 백필</button>
+        </div>
+
+        <h2 class="aq-section-title">1단계(B) · 문서 하이브리드 검색 (SQLite FTS5 + Trigram + RRF)</h2>
+        <div class="aq-metrics" aria-label="문서 하이브리드 지표">
+          <div><span>FTS5 색인</span><strong id="aq-fts-count">—</strong></div>
+          <div><span>Trigram(한글)</span><strong id="aq-tri-count">—</strong></div>
+          <div><span>문서 검색 수</span><strong id="aq-doc-queries">—</strong></div>
+          <div><span>평균 응답</span><strong id="aq-doc-latency">—</strong></div>
+        </div>
+        <section class="aq-panel">
+          <div class="aq-panel-head"><h3>최근 문서 검색 로그</h3><span class="aq-sub-inline" id="aq-doc-ratio"></span></div>
+          <div class="aq-table-wrap">
+            <table><thead><tr><th scope="col">시각</th><th scope="col">테넌트</th><th scope="col">질의</th><th scope="col">경로</th><th scope="col">결과·지연</th></tr></thead><tbody id="aq-doc-logs"></tbody></table>
+          </div>
+          <p id="aq-doc-logs-empty" hidden>아직 기록된 문서 검색 이력이 없습니다.</p>
+        </section>
+
+        <h2 class="aq-section-title">2단계(A) · 웹 검색 엔진 (Provider + 폴백 + SQLite TTL 캐시)</h2>
+        <div class="aq-metrics" aria-label="웹 검색 지표">
+          <div><span>엔진 상태</span><strong id="aq-web-state">—</strong></div>
+          <div><span>1순위 → 폴백</span><strong id="aq-web-route" class="aq-metric-sm">—</strong></div>
+          <div><span>캐시 히트율</span><strong id="aq-web-cache">—</strong></div>
+          <div><span>평균 응답</span><strong id="aq-web-latency">—</strong></div>
+        </div>
+        <section class="aq-panel">
+          <div class="aq-panel-head">
+            <h3>웹 검색 테스트</h3>
+            <button type="button" id="aq-web-clear-cache" class="aq-button">캐시 비우기 (<span id="aq-web-cache-count">0</span>)</button>
+          </div>
+          <form id="aq-web-test-form" class="aq-inline-form">
+            <input type="text" id="aq-web-test-query" placeholder="테스트 검색어 입력 (예: SQLite FTS5 trigram)" required maxlength="200">
+            <button type="submit" class="aq-button aq-primary" id="aq-web-test-btn">검색 실행</button>
+          </form>
+          <div id="aq-web-test-meta" class="aq-sub-inline" hidden></div>
+          <ul id="aq-web-test-results" class="aq-result-list" hidden></ul>
+        </section>
+        <section class="aq-panel aq-detail">
+          <div class="aq-panel-head"><h3>최근 웹 검색 로그</h3><span class="aq-sub-inline" id="aq-web-ratio"></span></div>
+          <div class="aq-table-wrap">
+            <table><thead><tr><th scope="col">시각</th><th scope="col">테넌트</th><th scope="col">질의</th><th scope="col">프로바이더</th><th scope="col">결과·지연</th></tr></thead><tbody id="aq-web-logs"></tbody></table>
+          </div>
+          <p id="aq-web-logs-empty" hidden>아직 기록된 웹 검색 이력이 없습니다.</p>
+        </section>
+      </section>
+
       <section id="aq-settings" hidden aria-labelledby="aq-settings-title">
         <div class="aq-header"><div><h1 id="aq-settings-title">검색 설정</h1><div class="aq-sub"><span id="aq-model"></span></div></div></div>
         <form class="aq-panel aq-settings" id="aq-form">
+          <h2 class="aq-form-title">문서 의미 검색 (nano Ollama)</h2>
           <label class="aq-field"><span><strong>의미 검색</strong><small>사용자 질문의 벡터 검색을 켭니다.</small></span><input type="checkbox" id="aq-semantic" disabled></label>
           <label class="aq-field"><span><strong>최소 유사도</strong><small>의미 검색 결과에 포함할 기준입니다.</small></span><input type="number" id="aq-threshold" value="0.40" disabled min="0" max="1" step="0.01" required></label>
-          <button type="submit" class="aq-button aq-primary" disabled>설정 저장</button>
+          <button type="submit" class="aq-button aq-primary" disabled>의미 검색 설정 저장</button>
+        </form>
+        <form class="aq-panel aq-settings" id="aq-web-form">
+          <h2 class="aq-form-title">웹 검색 엔진 설정</h2>
+          <label class="aq-field"><span><strong>웹 검색 활성화</strong><small>AGTools 웹 검색 API(/api/v1/web/search)를 켭니다.</small></span><input type="checkbox" id="aq-web-enabled"></label>
+          <label class="aq-field"><span><strong>공개(/HD2AI/) 허용</strong><small>비로그인 공개 테넌트 요청을 허용합니다.</small></span><input type="checkbox" id="aq-web-public"></label>
+          <label class="aq-field"><span><strong>1순위 프로바이더</strong><small>기본으로 호출할 웹 검색 엔진입니다.</small></span>
+            <select id="aq-web-primary">
+              <option value="duckduckgo">DuckDuckGo (무키 내장)</option>
+              <option value="searxng">SearXNG (자체 호스팅)</option>
+              <option value="wikipedia">Wikipedia (무키 내장)</option>
+              <option value="brave">Brave Search API</option>
+              <option value="tavily">Tavily API</option>
+            </select>
+          </label>
+          <label class="aq-field"><span><strong>폴백 프로바이더</strong><small>1순위 실패·차단 시 자동 전환합니다.</small></span>
+            <select id="aq-web-fallback">
+              <option value="wikipedia">Wikipedia (무키 내장)</option>
+              <option value="duckduckgo">DuckDuckGo (무키 내장)</option>
+              <option value="searxng">SearXNG (자체 호스팅)</option>
+              <option value="brave">Brave Search API</option>
+              <option value="tavily">Tavily API</option>
+              <option value="none">사용 안 함</option>
+            </select>
+          </label>
+          <label class="aq-field"><span><strong>SearXNG URL (선택)</strong><small>예: http://127.0.0.1:8888</small></span><input type="text" id="aq-web-searxng" placeholder="http://127.0.0.1:8888"></label>
+          <label class="aq-field"><span><strong>캐시 TTL (초)</strong><small>동일 질의 SQLite 캐시 보관 시간입니다.</small></span><input type="number" id="aq-web-ttl" value="900" min="0" max="86400" step="60"></label>
+          <label class="aq-field"><span><strong>공개 분당 한도 (RPM)</strong><small>공개 테넌트 요청 제한입니다.</small></span><input type="number" id="aq-web-pub-rpm" value="3" min="1" max="120"></label>
+          <label class="aq-field"><span><strong>관리자 분당 한도 (RPM)</strong><small>관리자 요청 제한입니다.</small></span><input type="number" id="aq-web-adm-rpm" value="20" min="1" max="300"></label>
+          <label class="aq-field"><span><strong>타임아웃 (초)</strong><small>외부 검색 엔진 응답 대기 상한입니다.</small></span><input type="number" id="aq-web-timeout" value="7" min="1" max="20" step="0.5"></label>
+          <button type="submit" class="aq-button aq-primary">웹 검색 설정 저장</button>
         </form>
       </section>
       <div class="aq-message" id="aq-message" role="status" aria-live="polite"></div>

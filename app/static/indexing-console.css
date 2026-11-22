@@ -72,6 +72,22 @@
   #agtools-queue-preview .aq-pagination button[disabled]{opacity:.5;cursor:default}
   #agtools-queue-preview .aq-time{min-width:48px}
   #agtools-queue-preview #aq-message[data-error]{color:var(--aq-red)}
+  #agtools-queue-preview .aq-section-title{margin:20px 0 0;font-size:15px;color:var(--aq-sub);font-weight:650}
+  #agtools-queue-preview .aq-form-title{margin:0 0 14px;font-size:15px}
+  #agtools-queue-preview .aq-sub-inline{font-size:12px;color:var(--aq-sub)}
+  #agtools-queue-preview .aq-metric-sm{font-size:15px!important;line-height:1.45!important;word-break:break-word}
+  #agtools-queue-preview input[type=text]{border:1px solid var(--aq-line);border-radius:7px;background:var(--aq-panel);padding:7px 10px}
+  #agtools-queue-preview .aq-field input[type=text]{width:min(260px,100%)}
+  #agtools-queue-preview .aq-inline-form{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  #agtools-queue-preview .aq-inline-form input[type=text]{flex:1 1 220px;min-width:0}
+  #agtools-queue-preview .aq-result-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+  #agtools-queue-preview .aq-result-list li{border:1px solid var(--aq-line);border-radius:8px;padding:9px 11px;background:var(--aq-bg)}
+  #agtools-queue-preview .aq-result-list a{color:var(--aq-accent);font-weight:650;text-decoration:none;word-break:break-word}
+  #agtools-queue-preview .aq-result-list a:hover{text-decoration:underline}
+  #agtools-queue-preview .aq-result-list p{margin-top:4px;font-size:12px;color:var(--aq-sub);line-height:1.45}
+  #agtools-queue-preview .aq-badge[data-state=hybrid],#agtools-queue-preview .aq-badge[data-state=primary]{background:var(--aq-green-bg);color:var(--aq-green)}
+  #agtools-queue-preview .aq-badge[data-state=cache_hit]{background:var(--aq-blue-bg);color:var(--aq-blue)}
+  #agtools-queue-preview .aq-badge[data-state=fts5_fallback],#agtools-queue-preview .aq-badge[data-state=fallback],#agtools-queue-preview .aq-badge[data-state=error]{background:var(--aq-red-bg);color:var(--aq-red)}
 
 .theme-fab{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));width:44px;height:44px;display:grid;place-items:center;border-radius:50%;background:light-dark(#fff,#12192E);color:light-dark(#1D192B,#EEF2FF);border:1px solid light-dark(#E8E4F2,#253154);cursor:pointer;z-index:2}
 .theme-ic{display:none;width:19px;height:19px;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;fill:none}

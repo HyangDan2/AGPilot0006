@@ -89,6 +89,20 @@ def init_db() -> None:
             # FTS5 fallback if disabled in custom sqlite builds
             pass
 
+        # 3b. SQLite FTS5 trigram table for Korean/subword partial matching (Track B)
+        try:
+            cursor.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS document_chunks_fts_trigram USING fts5(
+                    chunk_id,
+                    document_id,
+                    section_id,
+                    content,
+                    tokenize='trigram'
+                );
+            """)
+        except sqlite3.OperationalError:
+            pass
+
         # 4. Persistent Vector Store for Hybrid RAG (cosine similarity via numpy BLOB)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS document_chunk_vectors (
@@ -100,6 +114,26 @@ def init_db() -> None:
             );
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vec_doc ON document_chunk_vectors(document_id);")
+
+        # 5. Search Engine Activity Logs (Track B + Track A observability)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS search_engine_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                engine_type TEXT NOT NULL,
+                tenant_id TEXT NOT NULL DEFAULT 'default_tenant',
+                query TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                provider TEXT NOT NULL DEFAULT '',
+                result_count INTEGER NOT NULL DEFAULT 0,
+                latency_ms INTEGER NOT NULL DEFAULT 0,
+                cache_hit INTEGER NOT NULL DEFAULT 0,
+                fallback_used INTEGER NOT NULL DEFAULT 0,
+                detail TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_search_logs_created ON search_engine_logs(created_at DESC);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_search_logs_type ON search_engine_logs(engine_type, created_at DESC);")
 
         conn.commit()
 

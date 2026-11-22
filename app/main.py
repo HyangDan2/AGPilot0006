@@ -10,7 +10,7 @@ from app.config import settings
 from app.core.database import get_db_connection, init_db
 from app.core.job_manager import JobManager
 from app.api.v1.router import api_router
-from app.services import semantic_index
+from app.services import semantic_index, web_search
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,6 +21,7 @@ async def lifespan(app: FastAPI):
     JobManager.recover_on_startup()
     with get_db_connection() as conn:
         semantic_index.init_schema(conn)
+        web_search.init_schema(conn)
     worker = asyncio.create_task(semantic_index.run_worker()) if semantic_index.configured() else None
     try:
         yield

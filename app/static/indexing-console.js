@@ -3,8 +3,15 @@
   const get = (id) => root.querySelector('#aq-' + id);
   const base = new URL('api/v1/settings/embeddings', location.href);
   const queueUrl = new URL(base.href + '/queue');
+  const searchBase = new URL('api/v1/settings/search', location.href);
+  const searchOverviewUrl = new URL(searchBase.href + '/overview');
+  const ftsBackfillUrl = new URL(searchBase.href + '/fts-backfill');
+  const webSettingsUrl = new URL(searchBase.href + '/web');
+  const webTestUrl = new URL(searchBase.href + '/web/test');
+  const webCacheUrl = new URL(searchBase.href + '/web/cache');
   const pageSize = 15;
   const labels = {running:'처리 중', waiting:'대기', scheduled:'시간대 대기', retry:'재시도', failed:'실패', done:'완료', cancelled:'취소됨'};
+  const searchModeLabels = {hybrid:'하이브리드', fts5_only:'FTS5', fts5_fallback:'FTS5 폴백', scan_fallback:'스캔 폴백', primary:'1순위', fallback:'폴백', cache_hit:'캐시 HIT', error:'오류'};
   const reasons = {quiet_hours:'다음 색인 작업 시간에 시작합니다.', model_revision:'설정된 임베딩 모델 버전을 확인할 수 없습니다.',
     embedding_unavailable:'임베딩 서버가 응답하지 않았습니다.', embedding_dimension:'임베딩 벡터의 차원이 달라졌습니다.',
     chunk_read_failed:'저장된 문서 청크를 읽을 수 없습니다.'};
@@ -13,7 +20,9 @@
   let selected = null;
   let queue = null;
   let settings = null;
+  let overview = null;
   let dirty = false;
+  let webDirty = false;
   let busy = false;
   let generation = 0;
 
@@ -24,11 +33,14 @@
 
   async function request(url, method = 'GET', body) {
     const options = {method, cache:'no-store'};
-    if (body !== undefined) {
+    if (method !== 'GET' && method !== 'HEAD') {
       const session = await request('/auth/session');
       if (!session.authenticated || !session.csrf) throw new Error('관리자 로그인이 필요합니다.');
-      options.headers = {'Content-Type':'application/json', 'X-CSRF-Token':session.csrf};
-      options.body = JSON.stringify(body);
+      options.headers = {'X-CSRF-Token':session.csrf};
+      if (body !== undefined) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(body);
+      }
     }
     const response = await fetch(url, options);
     if (!response.ok) throw new Error(response.status === 409 ? '작업 상태가 바뀌었습니다. 목록을 다시 확인해 주세요.' : '요청 실패 (HTTP ' + response.status + ')');
@@ -81,7 +93,74 @@
     detail.replaceChildren(header,element('p',reason),dl);
   }
 
+  function tenantLabel(t) {
+    return t === 'public_tenant' ? '공개' : t === 'default_tenant' ? '관리자' : (t || '—');
+  }
+
+  function renderSearchLogs(tbodyId, emptyId, rows, showProvider) {
+    const tbody = get(tbodyId);
+    const empty = get(emptyId);
+    if (!tbody) return;
+    empty.hidden = rows.length > 0;
+    tbody.replaceChildren(...rows.map((item) => {
+      const tr = element('tr', null);
+      const badgeText = showProvider
+        ? (item.cache_hit ? '캐시 HIT (' + item.provider + ')' : (item.fallback_used ? '폴백 · ' + item.provider : item.provider))
+        : (searchModeLabels[item.mode] || item.mode);
+      const badge = element('span', badgeText, 'aq-badge');
+      badge.dataset.state = item.mode;
+      const tdMode = element('td', null);
+      tdMode.append(badge);
+      tr.append(
+        element('td', clock(item.created_at), 'aq-time'),
+        element('td', tenantLabel(item.tenant_id)),
+        element('td', item.query),
+        tdMode,
+        element('td', (item.result_count ?? 0) + '건 · ' + (item.latency_ms ?? 0) + 'ms', 'aq-count')
+      );
+      return tr;
+    }));
+  }
+
+  function renderSearchOverview() {
+    if (!overview) return;
+    const doc = overview.document_hybrid || {};
+    const web = overview.web_search || {};
+    const ws = web.settings || {};
+
+    get('fts-count').textContent = (doc.fts_indexed_documents ?? 0) + ' / ' + (doc.total_documents ?? 0);
+    get('tri-count').textContent = (doc.trigram_indexed_documents ?? 0) + ' / ' + (doc.total_documents ?? 0);
+    get('doc-queries').textContent = doc.total_queries ?? 0;
+    get('doc-latency').textContent = (doc.avg_latency_ms ?? 0) + 'ms';
+    get('doc-ratio').textContent = '하이브리드 ' + (doc.hybrid_queries ?? 0) + '건 · 폴백 ' + (doc.fallback_queries ?? 0) + '건';
+    renderSearchLogs('doc-logs', 'doc-logs-empty', doc.recent_logs || [], false);
+
+    get('web-state').textContent = ws.enabled ? (ws.public_enabled ? '관리자+공개' : '관리자 전용') : '비활성';
+    get('web-route').textContent = (ws.primary_provider || '—') + ' → ' + (ws.fallback_provider || 'none');
+    get('web-cache').textContent = (web.cache_hit_rate ?? 0) + '%';
+    get('web-latency').textContent = (web.avg_latency_ms ?? 0) + 'ms';
+    get('web-cache-count').textContent = web.active_cache_entries ?? 0;
+    get('web-ratio').textContent = '총 ' + (web.total_queries ?? 0) + '건 · 폴백 ' + (web.fallback_queries ?? 0) + '건';
+    renderSearchLogs('web-logs', 'web-logs-empty', web.recent_logs || [], true);
+
+    if (!webDirty && get('web-form')) {
+      get('web-enabled').checked = !!ws.enabled;
+      get('web-public').checked = !!ws.public_enabled;
+      get('web-primary').value = ws.primary_provider || 'duckduckgo';
+      get('web-fallback').value = ws.fallback_provider || 'wikipedia';
+      get('web-searxng').value = ws.searxng_url || '';
+      get('web-ttl').value = ws.cache_ttl_seconds ?? 900;
+      get('web-pub-rpm').value = ws.public_rpm ?? 3;
+      get('web-adm-rpm').value = ws.admin_rpm ?? 20;
+      get('web-timeout').value = ws.timeout_seconds ?? 7;
+    }
+    if (get('fts-backfill')) get('fts-backfill').disabled = busy;
+    if (get('web-clear-cache')) get('web-clear-cache').disabled = busy;
+    if (get('web-test-btn')) get('web-test-btn').disabled = busy;
+  }
+
   function render() {
+    renderSearchOverview();
     if (settings) {
       get('model').textContent = settings.model || '임베딩 모델 미설정';
       get('search-status').textContent = settings.enabled ? '의미 검색 사용 중' : '키워드 검색만 사용';
@@ -142,11 +221,16 @@
     const url = new URL(queueUrl);
     url.search = new URLSearchParams({state:get('filter').value,limit:pageSize,offset});
     try {
-      const [newQueue, newSettings] = await Promise.all([request(url),request(base)]);
+      const [newQueue, newSettings, newOverview] = await Promise.all([
+        request(url),
+        request(base),
+        request(searchOverviewUrl).catch(() => null),
+      ]);
       if (version !== generation || busy) return;
       if (offset && !newQueue.jobs.length) { offset = 0; return refresh(); }
       queue = newQueue;
       settings = newSettings;
+      if (newOverview) overview = newOverview;
       render();
     } catch (error) {
       if (version === generation) announce(error.message, true);
@@ -189,8 +273,73 @@
   get('form').addEventListener('submit', (event) => {
     event.preventDefault();
     const body = {enabled:get('semantic').checked,min_similarity:get('threshold').valueAsNumber};
-    act(async () => { settings = await request(base, 'PUT', body); dirty = false; }, '검색 설정을 저장했습니다.');
+    act(async () => { settings = await request(base, 'PUT', body); dirty = false; }, '의미 검색 설정을 저장했습니다.');
   });
+  if (get('web-form')) {
+    get('web-form').addEventListener('input', () => { webDirty = true; });
+    get('web-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const body = {
+        enabled: get('web-enabled').checked,
+        public_enabled: get('web-public').checked,
+        primary_provider: get('web-primary').value,
+        fallback_provider: get('web-fallback').value,
+        searxng_url: get('web-searxng').value.trim(),
+        cache_ttl_seconds: get('web-ttl').valueAsNumber,
+        public_rpm: get('web-pub-rpm').valueAsNumber,
+        admin_rpm: get('web-adm-rpm').valueAsNumber,
+        timeout_seconds: get('web-timeout').valueAsNumber,
+      };
+      act(async () => {
+        await request(webSettingsUrl, 'PUT', body);
+        webDirty = false;
+      }, '웹 검색 엔진 설정을 저장했습니다.');
+    });
+  }
+  if (get('fts-backfill')) {
+    get('fts-backfill').addEventListener('click', () => {
+      act(async () => {
+        const res = await request(ftsBackfillUrl, 'POST', {});
+        announce('FTS5 백필 완료: 스캔 ' + res.scanned + '건 · 신규 색인 ' + res.indexed + '건');
+      }, 'FTS5 일괄 백필을 완료했습니다.');
+    });
+  }
+  if (get('web-clear-cache')) {
+    get('web-clear-cache').addEventListener('click', () => {
+      act(async () => {
+        await request(webCacheUrl, 'DELETE');
+      }, '웹 검색 캐시를 비웠습니다.');
+    });
+  }
+  if (get('web-test-form')) {
+    get('web-test-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const q = get('web-test-query').value.trim();
+      if (!q) return;
+      act(async () => {
+        const res = await request(webTestUrl, 'POST', {query: q, limit: 5, lang: 'auto', bypass_cache: false});
+        const meta = get('aq-web-test-meta') || get('web-test-meta');
+        const list = get('web-test-results');
+        if (meta) {
+          meta.hidden = false;
+          meta.textContent = '경로: ' + res.provider + (res.cache_hit ? ' (캐시 HIT)' : res.fallback_used ? ' (폴백)' : '') + ' · ' + res.total_results + '건 · ' + res.latency_ms + 'ms';
+        }
+        if (list) {
+          list.hidden = false;
+          list.replaceChildren(...(res.results || []).map((item) => {
+            const li = element('li', null);
+            const a = element('a', item.title || item.url);
+            a.href = item.url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            li.append(a);
+            if (item.snippet) li.append(element('p', item.snippet));
+            return li;
+          }));
+        }
+      }, '웹 검색 테스트를 완료했습니다.');
+    });
+  }
   root.querySelector('.aq-nav').addEventListener('click', (event) => {
     const button = event.target.closest('[data-view]');
     if (!button) return;
@@ -199,7 +348,9 @@
       if (item === button) item.setAttribute('aria-current','page');
       else item.removeAttribute('aria-current');
     });
-    for (const name of ['queue','settings']) get(name).hidden = name !== view;
+    for (const name of ['queue','search','settings']) {
+      if (get(name)) get(name).hidden = name !== view;
+    }
   });
   const themeButton = document.getElementById('themeFab');
   function applyTheme(value) {
