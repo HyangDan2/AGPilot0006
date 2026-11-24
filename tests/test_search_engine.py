@@ -199,3 +199,12 @@ def test_track_a_web_search_fallback_cache_and_admin_api(tmp_path, monkeypatch):
         r_bf = client.post("/api/v1/settings/search/fts-backfill", headers=ADMIN_HEADERS)
         assert r_bf.status_code == 200
         assert r_bf.json()["ok"] is True
+
+        # Budget-aware web search trims payload dynamically when token_budget is given
+        r_budget = client.post(
+            "/api/v1/web/search",
+            json={"query": "SQLite FTS5", "limit": 5, "token_budget": 120},
+            headers=ADMIN_HEADERS,
+        )
+        assert r_budget.status_code == 200
+        assert r_budget.json()["token_budget_applied"] == 120

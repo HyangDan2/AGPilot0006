@@ -16,6 +16,7 @@ class WebSearchRequest(BaseModel):
     limit: int = Field(5, ge=1, le=10)
     lang: str = Field("auto", max_length=16)
     bypass_cache: StrictBool = False
+    token_budget: Optional[int] = Field(default=None, ge=64, le=131072)
 
 
 class WebSearchSettingsBody(BaseModel):
@@ -36,7 +37,7 @@ def run_web_search(
     caller: CallerContext = Depends(get_current_caller),
 ):
     try:
-        return web_search.search(
+        res = web_search.search(
             query=body.query,
             limit=body.limit,
             lang=body.lang,
@@ -44,6 +45,20 @@ def run_web_search(
             owner_id=caller.owner_id,
             bypass_cache=body.bypass_cache,
         )
+        if body.token_budget is not None and res.get("results"):
+            char_budget = max(160, int(body.token_budget * 2.5))
+            per_snippet = max(60, min(400, char_budget // max(1, len(res["results"]))))
+            kept = []
+            used = 0
+            for item in res["results"]:
+                trimmed_item = {**item, "snippet": (item.get("snippet") or "")[:per_snippet]}
+                cost = len((trimmed_item["title"] + trimmed_item["url"] + trimmed_item["snippet"]).encode("utf-8")) + 48
+                if kept and used + cost > char_budget:
+                    break
+                kept.append(trimmed_item)
+                used += cost
+            res = {**res, "results": kept, "total_results": len(kept), "token_budget_applied": body.token_budget}
+        return res
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     except PermissionError as exc:
