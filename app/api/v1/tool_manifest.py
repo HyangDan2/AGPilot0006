@@ -23,7 +23,7 @@ DEFAULT_TOOLS: List[Dict[str, Any]] = [
         "kind": "http",
         "default_enabled": True,
         "is_read_only": True,
-        "description": "웹(SearXNG 등)에서 최신 정보, 뉴스, 외부 비교 자료를 검색합니다.",
+        "description": "웹(SearXNG 등)에서 최신 뉴스·시황·실시간 동향·외부 사실과 비교 자료를 검색합니다. 최신·실시간 외부 정보가 필요할 때 우선 사용합니다.",
         "parameters": {
             "type": "object",
             "properties": {
