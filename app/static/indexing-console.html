@@ -14,6 +14,7 @@
       <span class="aq-nav-label">AGTools</span>
       <button type="button" data-view="queue" aria-current="page">색인 작업</button>
       <button type="button" data-view="search">검색 현황</button>
+      <button type="button" data-view="docx">DOCX → MD</button>
       <button type="button" data-view="settings">검색 설정</button>
     </nav>
     <main class="aq-main">
@@ -91,6 +92,75 @@
           </div>
           <p id="aq-web-logs-empty" hidden>아직 기록된 웹 검색 이력이 없습니다.</p>
         </section>
+      </section>
+
+      <section id="aq-docx" hidden aria-labelledby="aq-docx-title">
+        <div class="aq-header">
+          <div>
+            <h1 id="aq-docx-title">DOCX → Markdown 추출</h1>
+            <div class="aq-sub"><span>LLM 미사용 결정적 파서 · 병합 표·사진·섹션 매핑 보존</span></div>
+          </div>
+        </div>
+        <form class="aq-panel aq-settings" id="aq-docx-form">
+          <div class="aq-docx-controls">
+            <label class="aq-docx-file">
+              <span><strong>DOCX 파일 선택</strong><small>표·병합 셀·사진·한글 제목이 포함된 .docx 문서</small></span>
+              <input type="file" id="aq-docx-file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+            </label>
+            <div class="aq-docx-opts">
+              <label>표 모드
+                <select id="aq-docx-table-mode">
+                  <option value="auto">자동 (병합 표는 HTML 유지)</option>
+                  <option value="gfm">전체 GFM 표</option>
+                  <option value="html">전체 HTML 표</option>
+                </select>
+              </label>
+              <label>이미지 모드
+                <select id="aq-docx-image-mode">
+                  <option value="assets">assets/ 링크 (ZIP 권장)</option>
+                  <option value="base64">Base64 단일 MD</option>
+                  <option value="none">이미지 텍스트 표시</option>
+                </select>
+              </label>
+            </div>
+            <div class="aq-docx-actions">
+              <button type="submit" class="aq-button aq-primary" id="aq-docx-run">Markdown 추출</button>
+              <button type="button" class="aq-button" id="aq-docx-zip">ZIP 다운로드 (MD + 사진)</button>
+            </div>
+          </div>
+        </form>
+
+        <div id="aq-docx-output" hidden>
+          <div class="aq-metrics" aria-label="DOCX 추출 통계">
+            <div><span>섹션</span><strong id="aq-docx-stat-sec">0</strong></div>
+            <div><span>전체 표</span><strong id="aq-docx-stat-tbl">0</strong></div>
+            <div><span>병합·복합 표</span><strong id="aq-docx-stat-mtbl">0</strong></div>
+            <div><span>추출 사진</span><strong id="aq-docx-stat-img">0</strong></div>
+          </div>
+
+          <section class="aq-panel">
+            <div class="aq-panel-head">
+              <h3>Markdown 결과</h3>
+              <div class="aq-docx-actions">
+                <button type="button" class="aq-button" id="aq-docx-copy">원문 복사</button>
+                <button type="button" class="aq-button" id="aq-docx-dl-md">.md 다운로드</button>
+              </div>
+            </div>
+            <textarea id="aq-docx-md" class="aq-md-box" readonly spellcheck="false"></textarea>
+          </section>
+
+          <section class="aq-panel aq-detail" id="aq-docx-sec-panel" hidden>
+            <div class="aq-panel-head"><h3>섹션 ↔ 이미지 매핑 (오케스트레이션 구조)</h3></div>
+            <div class="aq-table-wrap">
+              <table><thead><tr><th scope="col">ID</th><th scope="col">제목</th><th scope="col">표</th><th scope="col">연결된 사진</th></tr></thead><tbody id="aq-docx-sec-rows"></tbody></table>
+            </div>
+          </section>
+
+          <section class="aq-panel aq-detail" id="aq-docx-fig-panel" hidden>
+            <div class="aq-panel-head"><h3>추출된 사진</h3></div>
+            <div id="aq-docx-figs" class="aq-fig-grid"></div>
+          </section>
+        </div>
       </section>
 
       <section id="aq-settings" hidden aria-labelledby="aq-settings-title">

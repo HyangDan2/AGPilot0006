@@ -9,6 +9,8 @@
   const webSettingsUrl = new URL(searchBase.href + '/web');
   const webTestUrl = new URL(searchBase.href + '/web/test');
   const webCacheUrl = new URL(searchBase.href + '/web/cache');
+  const docxToolUrl = new URL('api/v1/settings/tools/docx-to-md', location.href);
+  let lastDocxResult = null;
   const pageSize = 15;
   const labels = {running:'처리 중', waiting:'대기', scheduled:'시간대 대기', retry:'재시도', failed:'실패', done:'완료', cancelled:'취소됨'};
   const searchModeLabels = {hybrid:'하이브리드', fts5_only:'FTS5', fts5_fallback:'FTS5 폴백', scan_fallback:'스캔 폴백', primary:'1순위', fallback:'폴백', cache_hit:'캐시 HIT', error:'오류'};
@@ -340,6 +342,102 @@
       }, '웹 검색 테스트를 완료했습니다.');
     });
   }
+  async function runDocxTool(responseFormat) {
+    const fileInput = get('docx-file');
+    const file = fileInput?.files?.[0];
+    if (!file) { announce('DOCX 파일을 먼저 선택해 주세요.', true); return; }
+    const session = await request('/auth/session');
+    if (!session.authenticated || !session.csrf) throw new Error('관리자 로그인이 필요합니다.');
+    const tableMode = get('docx-table-mode').value;
+    const imageMode = get('docx-image-mode').value;
+    const url = new URL(docxToolUrl);
+    url.search = new URLSearchParams({ table_mode: tableMode, image_mode: imageMode, response_format: responseFormat });
+    const form = new FormData();
+    form.append('file', file, file.name);
+    const resp = await fetch(url, { method: 'POST', headers: { 'X-CSRF-Token': session.csrf }, body: form });
+    if (!resp.ok) {
+      let msg = '변환 실패 (HTTP ' + resp.status + ')';
+      try { const j = await resp.json(); if (j?.detail) msg = j.detail; } catch {}
+      throw new Error(msg);
+    }
+    if (responseFormat === 'zip') {
+      const blob = await resp.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = file.name.replace(/\.docx$/i, '') + '.zip';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+      return;
+    }
+    const data = await resp.json();
+    lastDocxResult = data;
+    get('docx-output').hidden = false;
+    get('docx-stat-sec').textContent = data.stats?.sections ?? 0;
+    get('docx-stat-tbl').textContent = data.stats?.tables ?? 0;
+    get('docx-stat-mtbl').textContent = data.stats?.merged_tables ?? 0;
+    get('docx-stat-img').textContent = data.stats?.images ?? 0;
+    get('docx-md').value = data.markdown || '';
+
+    const secs = data.sections || [];
+    get('docx-sec-panel').hidden = secs.length === 0;
+    get('docx-sec-rows').replaceChildren(...secs.map((s) => {
+      const tr = element('tr', null);
+      tr.append(
+        element('td', s.section_id),
+        element('td', '  '.repeat(Math.max(0, (s.level || 1) - 1)) + s.title),
+        element('td', String(s.table_count ?? 0), 'aq-count'),
+        element('td', (s.figure_ids || []).join(', ') || '—')
+      );
+      return tr;
+    }));
+
+    const figs = data.figures || [];
+    get('docx-fig-panel').hidden = figs.length === 0;
+    get('docx-figs').replaceChildren(...figs.map((f) => {
+      const card = element('div', null, 'aq-fig-card');
+      if (f.preview_data_url) {
+        const img = document.createElement('img');
+        img.src = f.preview_data_url;
+        img.alt = f.caption || f.figure_id;
+        card.append(img);
+      }
+      card.append(
+        element('strong', f.figure_id),
+        element('small', (f.section_id || '—') + ' · ' + f.context),
+        element('small', f.caption || f.filename)
+      );
+      return card;
+    }));
+  }
+
+  if (get('docx-form')) {
+    get('docx-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      act(() => runDocxTool('json'), 'DOCX → Markdown 추출을 완료했습니다.');
+    });
+    get('docx-zip').addEventListener('click', () => {
+      act(() => runDocxTool('zip'), 'Markdown + 사진 ZIP 패키지를 다운로드했습니다.');
+    });
+    get('docx-copy').addEventListener('click', async () => {
+      if (!lastDocxResult?.markdown) return;
+      try {
+        await navigator.clipboard.writeText(lastDocxResult.markdown);
+        announce('Markdown 원문을 클립보드에 복사했습니다.');
+      } catch {
+        announce('클립보드 복사에 실패했습니다.', true);
+      }
+    });
+    get('docx-dl-md').addEventListener('click', () => {
+      if (!lastDocxResult?.markdown) return;
+      const blob = new Blob([lastDocxResult.markdown], { type: 'text/markdown;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (lastDocxResult.filename || 'document').replace(/\.docx$/i, '') + '.md';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+    });
+  }
+
   root.querySelector('.aq-nav').addEventListener('click', (event) => {
     const button = event.target.closest('[data-view]');
     if (!button) return;
@@ -348,7 +446,7 @@
       if (item === button) item.setAttribute('aria-current','page');
       else item.removeAttribute('aria-current');
     });
-    for (const name of ['queue','search','settings']) {
+    for (const name of ['queue','search','docx','settings']) {
       if (get(name)) get(name).hidden = name !== view;
     }
   });
