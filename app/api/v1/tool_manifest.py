@@ -23,7 +23,7 @@ DEFAULT_TOOLS: List[Dict[str, Any]] = [
         "kind": "http",
         "default_enabled": True,
         "is_read_only": True,
-        "description": "웹(SearXNG 등)에서 최신 뉴스·시황·실시간 동향·외부 사실과 비교 자료를 검색합니다. 최신·실시간 외부 정보가 필요할 때 우선 사용합니다.",
+        "description": "웹(SearXNG 등)에서 최신·실시간 외부 정보, 동향, 사실 확인, 비교 자료를 검색합니다. 실시간·최신 정보가 필요한 질문에서는 도구가 없다고 답하기 전에 이 도구를 우선 호출하세요. (Search the live web for real-time/current information, recent developments, and external facts; call this before claiming lack of live data.)",
         "parameters": {
             "type": "object",
             "properties": {
@@ -48,7 +48,7 @@ DEFAULT_TOOLS: List[Dict[str, Any]] = [
         "kind": "http",
         "default_enabled": True,
         "is_read_only": True,
-        "description": "특정 웹사이트 URL(예: https://hyangdan2.github.io)의 본문 텍스트를 직접 읽어와 분석합니다.",
+        "description": "특정 웹사이트 URL(예: https://hyangdan2.github.io)의 본문 텍스트를 직접 읽어와 분석합니다(동적 페이지 지원). (Fetch and extract readable text content from a specific web URL, including dynamic pages.)",
         "parameters": {
             "type": "object",
             "properties": {
