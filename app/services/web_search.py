@@ -165,8 +165,8 @@ def save_settings(
                 fallback_provider,
                 clean_url,
                 max(0, min(int(cache_ttl_seconds), 86400)),
-                max(1, min(int(public_rpm), 120)),
-                max(1, min(int(admin_rpm), 300)),
+                max(0, min(int(public_rpm), 300)),
+                max(0, min(int(admin_rpm), 600)),
                 max(1.0, min(float(timeout_seconds), 20.0)),
                 _now_iso(),
             ),
@@ -184,6 +184,8 @@ def clear_cache() -> int:
 
 
 def _check_rate_limit(bucket_key: str, rpm: int) -> bool:
+    if rpm <= 0:
+        return True
     now = time.monotonic()
     with _rate_lock:
         dq = _rate_buckets[bucket_key]
@@ -195,9 +197,43 @@ def _check_rate_limit(bucket_key: str, rpm: int) -> bool:
         return True
 
 
-def _cache_key(query: str, limit: int, lang: str, primary: str) -> str:
-    raw = f"{primary}|{lang.lower()}|{limit}|{query.strip().lower()}".encode("utf-8")
-    return hashlib.sha256(raw).hexdigest()
+
+def _is_portal_root_url(url: str) -> bool:
+    try:
+        p = urlparse(url)
+        segs = [s for s in (p.path or "").split("/") if s]
+        if len(segs) == 0:
+            return True
+        if len(segs) == 1 and segs[0].lower() in ("main", "index", "home", "news", "market", "stock", "domestic", "finance", "economy") and not p.query:
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def _evaluate_search_quality(results: List[Dict[str, Any]], category: str, time_range: str) -> Dict[str, Any]:
+    if not results:
+        hints = []
+        if category == "news":
+            hints.append({"tool": "web.search", "args": {"category": "general", "time_range": "all"}, "why": "뉴스 카테고리 결과 없음 — 일반 검색으로 확대"})
+        else:
+            hints.append({"tool": "web.search", "args": {"category": "news", "time_range": "week"}, "why": "검색 결과 없음 — 뉴스/다른 키워드로 재검색"})
+        return {"quality": "empty", "reason": "zero_hits", "next_hints": hints}
+    portal_count = sum(1 for r in results if _is_portal_root_url(r.get("url") or ""))
+    avg_snip = sum(len((r.get("snippet") or "").strip()) for r in results) / max(1, len(results))
+    if (portal_count / len(results) >= 0.6) or avg_snip < 55:
+        hints = []
+        if category != "news":
+            hints.append({"tool": "web.search", "args": {"category": "news", "time_range": "day"}, "why": "포털 메인 링크 위주 결과 — news 카테고리(time_range=day)로 개별 최신 기사 재검색"})
+        article_urls = [r["url"] for r in results if not _is_portal_root_url(r.get("url") or "")]
+        if article_urls:
+            hints.append({"tool": "web.fetch", "args": {"url": article_urls[0]}, "why": "상위 기사 URL 본문 직접 조회"})
+        return {"quality": "shallow", "reason": "portal_links_only", "next_hints": hints}
+    return {"quality": "sufficient", "reason": "ok", "next_hints": []}
+
+def _cache_key(query: str, limit: int, lang: str, primary: str, category: str = "general", time_range: str = "all", max_snippet_chars: int = 800) -> str:
+    raw = f"{primary}|{category}|{time_range}|{lang}|{limit}|{max_snippet_chars}|{query.strip().lower()}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def _read_cache(key: str) -> Optional[Tuple[str, List[Dict[str, Any]]]]:
@@ -337,10 +373,14 @@ class _DuckDuckGoHTMLParser(HTMLParser):
         return href
 
 
-def _provider_searxng(query: str, limit: int, lang: str, timeout: float, searxng_url: str) -> List[Dict[str, Any]]:
+def _provider_searxng(query: str, limit: int, lang: str, timeout: float, searxng_url: str, category: str = "general", time_range: str = "all", max_snippet_chars: int = 800) -> List[Dict[str, Any]]:
     if not searxng_url:
         raise RuntimeError("searxng_not_configured")
     params = {"q": query, "format": "json"}
+    if category == "news":
+        params["categories"] = "news"
+    if time_range in ("day", "week", "month", "year"):
+        params["time_range"] = time_range
     if lang and lang != "auto":
         params["language"] = lang
     resp = httpx.get(
@@ -360,7 +400,7 @@ def _provider_searxng(query: str, limit: int, lang: str, timeout: float, searxng
             {
                 "title": (item.get("title") or url).strip()[:200],
                 "url": url,
-                "snippet": (item.get("content") or "").strip()[:400],
+                "snippet": (item.get("content") or "").strip()[:max_snippet_chars],
                 "source": item.get("engine") or "searxng",
             }
         )
@@ -369,7 +409,7 @@ def _provider_searxng(query: str, limit: int, lang: str, timeout: float, searxng
     return results
 
 
-def _provider_duckduckgo(query: str, limit: int, lang: str, timeout: float) -> List[Dict[str, Any]]:
+def _provider_duckduckgo(query: str, limit: int, lang: str, timeout: float, max_snippet_chars: int = 800) -> List[Dict[str, Any]]:
     resp = httpx.get(
         "https://html.duckduckgo.com/html/",
         params={"q": query},
@@ -389,7 +429,7 @@ def _provider_duckduckgo(query: str, limit: int, lang: str, timeout: float) -> L
             {
                 "title": item["title"][:200],
                 "url": url,
-                "snippet": item["snippet"][:400],
+                "snippet": item["snippet"][:max_snippet_chars],
                 "source": "duckduckgo",
             }
         )
@@ -398,7 +438,7 @@ def _provider_duckduckgo(query: str, limit: int, lang: str, timeout: float) -> L
     return results
 
 
-def _provider_wikipedia(query: str, limit: int, lang: str, timeout: float) -> List[Dict[str, Any]]:
+def _provider_wikipedia(query: str, limit: int, lang: str, timeout: float, max_snippet_chars: int = 800) -> List[Dict[str, Any]]:
     has_korean = bool(re.search(r"[가-힣]", query))
     wiki_lang = "ko" if (lang.startswith("ko") or (lang == "auto" and has_korean)) else "en"
     resp = httpx.get(
@@ -428,7 +468,7 @@ def _provider_wikipedia(query: str, limit: int, lang: str, timeout: float) -> Li
             {
                 "title": title[:200],
                 "url": url,
-                "snippet": unescape(raw_snippet).strip()[:400],
+                "snippet": unescape(raw_snippet).strip()[:max_snippet_chars],
                 "source": f"wikipedia-{wiki_lang}",
             }
         )
@@ -437,7 +477,7 @@ def _provider_wikipedia(query: str, limit: int, lang: str, timeout: float) -> Li
     return results
 
 
-def _provider_brave(query: str, limit: int, lang: str, timeout: float) -> List[Dict[str, Any]]:
+def _provider_brave(query: str, limit: int, lang: str, timeout: float, max_snippet_chars: int = 800) -> List[Dict[str, Any]]:
     api_key = _env_key("AGTOOLS_BRAVE_API_KEY")
     if not api_key:
         raise RuntimeError("brave_not_configured")
@@ -458,7 +498,7 @@ def _provider_brave(query: str, limit: int, lang: str, timeout: float) -> List[D
             {
                 "title": (item.get("title") or url).strip()[:200],
                 "url": url,
-                "snippet": (item.get("description") or "").strip()[:400],
+                "snippet": (item.get("description") or "").strip()[:max_snippet_chars],
                 "source": "brave",
             }
         )
@@ -467,7 +507,7 @@ def _provider_brave(query: str, limit: int, lang: str, timeout: float) -> List[D
     return results
 
 
-def _provider_tavily(query: str, limit: int, lang: str, timeout: float) -> List[Dict[str, Any]]:
+def _provider_tavily(query: str, limit: int, lang: str, timeout: float, max_snippet_chars: int = 800) -> List[Dict[str, Any]]:
     api_key = _env_key("AGTOOLS_TAVILY_API_KEY")
     if not api_key:
         raise RuntimeError("tavily_not_configured")
@@ -487,7 +527,7 @@ def _provider_tavily(query: str, limit: int, lang: str, timeout: float) -> List[
             {
                 "title": (item.get("title") or url).strip()[:200],
                 "url": url,
-                "snippet": (item.get("content") or "").strip()[:400],
+                "snippet": (item.get("content") or "").strip()[:max_snippet_chars],
                 "source": "tavily",
             }
         )
@@ -496,18 +536,18 @@ def _provider_tavily(query: str, limit: int, lang: str, timeout: float) -> List[
     return results
 
 
-def _call_provider(provider: str, query: str, limit: int, lang: str, cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _call_provider(provider: str, query: str, limit: int, lang: str, cfg: Dict[str, Any], category: str = "general", time_range: str = "all", max_snippet_chars: int = 800) -> List[Dict[str, Any]]:
     timeout = float(cfg["timeout_seconds"])
     if provider == "searxng":
-        return _provider_searxng(query, limit, lang, timeout, cfg["searxng_url"])
+        return _provider_searxng(query, limit, lang, timeout, cfg["searxng_url"], category=category, time_range=time_range, max_snippet_chars=max_snippet_chars)
     if provider == "duckduckgo":
-        return _provider_duckduckgo(query, limit, lang, timeout)
+        return _provider_duckduckgo(query, limit, lang, timeout, max_snippet_chars=max_snippet_chars)
     if provider == "wikipedia":
-        return _provider_wikipedia(query, limit, lang, timeout)
+        return _provider_wikipedia(query, limit, lang, timeout, max_snippet_chars=max_snippet_chars)
     if provider == "brave":
-        return _provider_brave(query, limit, lang, timeout)
+        return _provider_brave(query, limit, lang, timeout, max_snippet_chars=max_snippet_chars)
     if provider == "tavily":
-        return _provider_tavily(query, limit, lang, timeout)
+        return _provider_tavily(query, limit, lang, timeout, max_snippet_chars=max_snippet_chars)
     raise ValueError(f"Unsupported provider: {provider}")
 
 
@@ -516,6 +556,9 @@ def search(
     query: str,
     limit: int = 5,
     lang: str = "auto",
+    category: str = "general",
+    time_range: str = "all",
+    max_snippet_chars: int = 800,
     tenant_id: str = "default_tenant",
     owner_id: str = "admin",
     bypass_cache: bool = False,
@@ -524,7 +567,8 @@ def search(
     clean_query = query.strip()
     if not clean_query:
         raise ValueError("Search query cannot be empty")
-    limit = max(1, min(int(limit), 10))
+    limit = max(1, min(int(limit), 25))
+    max_snippet_chars = max(100, min(int(max_snippet_chars), 3000))
     cfg = get_settings()
 
     if not cfg["enabled"]:
@@ -532,12 +576,7 @@ def search(
     if tenant_id == "public_tenant" and not cfg["public_enabled"]:
         raise PermissionError("Web search is disabled for public tenant")
 
-    rpm = cfg["public_rpm"] if tenant_id == "public_tenant" else cfg["admin_rpm"]
-    bucket_key = f"{tenant_id}:{owner_id}"
-    if not _check_rate_limit(bucket_key, rpm):
-        raise RuntimeError("rate_limited")
-
-    key = _cache_key(clean_query, limit, lang, cfg["primary_provider"])
+    key = _cache_key(clean_query, limit, lang, cfg["primary_provider"], category, time_range, max_snippet_chars)
     if not bypass_cache and cfg["cache_ttl_seconds"] > 0:
         cached = _read_cache(key)
         if cached is not None:
@@ -560,9 +599,17 @@ def search(
                 "cache_hit": True,
                 "fallback_used": False,
                 "latency_ms": latency_ms,
+                "category": category,
+                "time_range": time_range,
                 "total_results": len(cached_results),
                 "results": cached_results,
+                "meta": _evaluate_search_quality(cached_results, category, time_range),
             }
+
+    rpm = cfg["public_rpm"] if tenant_id == "public_tenant" else cfg["admin_rpm"]
+    bucket_key = f"{tenant_id}:{owner_id}"
+    if not _check_rate_limit(bucket_key, rpm):
+        raise RuntimeError("rate_limited")
 
     primary = cfg["primary_provider"]
     fallback = cfg["fallback_provider"]
@@ -572,14 +619,14 @@ def search(
     results: List[Dict[str, Any]] = []
 
     try:
-        results = _call_provider(primary, clean_query, limit, lang, cfg)
+        results = _call_provider(primary, clean_query, limit, lang, cfg, category=category, time_range=time_range, max_snippet_chars=max_snippet_chars)
     except Exception as exc:
         primary_err = type(exc).__name__
         results = []
 
     if not results and fallback and fallback != "none" and fallback != primary:
         try:
-            results = _call_provider(fallback, clean_query, limit, lang, cfg)
+            results = _call_provider(fallback, clean_query, limit, lang, cfg, category=category, time_range=time_range, max_snippet_chars=max_snippet_chars)
             used_provider = fallback
             fallback_used = True
         except Exception as exc:
@@ -621,8 +668,11 @@ def search(
         "cache_hit": False,
         "fallback_used": fallback_used,
         "latency_ms": latency_ms,
+        "category": category,
+        "time_range": time_range,
         "total_results": len(results),
         "results": results,
+        "meta": _evaluate_search_quality(results, category, time_range),
     }
 
 
