@@ -111,7 +111,10 @@ all passing.
 
 ### 6.3 Gateway snapshot baseline
 
-`tests/test_readiness.py` fails in the snapshot with
+`tests/test_gateway.py` on the R21 branch: **9 failed, 37 passed**, and the same nine test ids
+fail on a clean worktree at base `df382df` (verified by diffing the failure lists). They are the
+route-registry, dynamic-key and embedded rate-limit cases that WO-R2-CLOSE already lists as
+contract differences — not R21 regressions. `tests/test_readiness.py` fails in the snapshot with
 `AttributeError: 'types.SimpleNamespace' object has no attribute 'execution_policy'` (the test
 fixture predates the `execution_policy()` API), and `tests/test_release.py`,
 `tests/test_socket_mode.py`, `tests/test_startup_repair.py` import `scripts/*` that are not part
