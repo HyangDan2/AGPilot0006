@@ -1,0 +1,21 @@
+# R21 knowledge engine — optional dependencies (WP-09)
+#
+# Core requirements.txt is enough for PDF/DOCX/PPTX parsing and every legacy endpoint.
+# The knowledge engine additionally uses these, and degrades explicitly when one is missing
+# (the manifest reports `available: false` with `unavailable_reason`).
+#
+# Install for a full engine:
+#   python3 -m pip install -r requirements.txt -c constraints-r21.lock -r requirements-optional.txt
+
+# Spreadsheet read/write (WP-05): pure Python, no compiler, ARM64/Windows/Linux wheels.
+openpyxl>=3.1.5,<3.2
+
+# Image metadata and OCR preprocessing (WP-03/WP-07).
+Pillow>=11.0.0
+
+# Optional OCR fallback. Requires the Tesseract binary on the host (`tesseract-ocr` package).
+# Without it, `VisionEngine` reports vision/OCR unavailable and returns no text.
+pytesseract>=0.3.13 ; python_version < "3.13"
+
+# Image insertion dimension helpers used by the DOCX/PPTX writers.
+lxml>=6.0.0

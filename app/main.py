@@ -5,12 +5,14 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.core.database import get_db_connection, init_db
 from app.core.job_manager import JobManager
 from app.api.v1.router import api_router
 from app.services import semantic_index, web_search
+from app.knowledge.contracts import KnowledgeError
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -42,6 +44,13 @@ app = FastAPI(
 
 # Include API v1 router
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+
+@app.exception_handler(KnowledgeError)
+async def knowledge_error_handler(request: Request, exc: KnowledgeError) -> JSONResponse:
+    """`dk/v1` errors are machine-readable and use the contract's status table."""
+
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.body.model_dump(mode="json")})
 
 # Serve brand assets
 BASE_PATH = Path(__file__).resolve().parent.parent

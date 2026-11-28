@@ -40,8 +40,22 @@ class Settings:
     # LibreOffice Path
     LIBREOFFICE_PATH: Optional[str] = os.getenv("LIBREOFFICE_PATH", None)
 
+    # R21 Document & Knowledge Engine (dk/v1 contract)
+    KNOWLEDGE_ENABLED: bool = os.getenv("KNOWLEDGE_ENABLED", "true").lower() in ("true", "1", "yes")
+    KNOWLEDGE_DIR: Path = Path(os.getenv("HD2_KNOWLEDGE_DIR", str(DATA_DIR / "knowledge")))
+    KNOWLEDGE_MAX_READ_CHARS: int = int(os.getenv("KNOWLEDGE_MAX_READ_CHARS", "400000"))
+    KNOWLEDGE_MAX_ROWS: int = int(os.getenv("KNOWLEDGE_MAX_ROWS", "5000"))
+    KNOWLEDGE_MAX_CELLS: int = int(os.getenv("KNOWLEDGE_MAX_CELLS", "50000"))
+    KNOWLEDGE_MAX_REVISIONS: int = int(os.getenv("KNOWLEDGE_MAX_REVISIONS", "20"))
+    # Vision: the model name is never hard-coded. A capability file is written by the
+    # deployment (Gateway-sourced) and read at request time; when absent, Vision is
+    # reported unavailable and OCR/text fallback is used instead.
+    KNOWLEDGE_VISION_CAPABILITY_FILE: Optional[str] = os.getenv("KNOWLEDGE_VISION_CAPABILITY_FILE", None)
+    KNOWLEDGE_OCR_ENABLED: bool = os.getenv("KNOWLEDGE_OCR_ENABLED", "false").lower() in ("true", "1", "yes")
+
     def init_directories(self) -> None:
         self.DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
         self.DATA_DIR.mkdir(parents=True, exist_ok=True)
+        self.KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
 
 settings = Settings()
