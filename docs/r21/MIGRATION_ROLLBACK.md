@@ -109,7 +109,14 @@ FAILED tests/test_r1_2_final_addendum.py::test_add_02_durable_analysis_real_orch
 R21: 21 tests (`test_r21_contract_conformance.py` 13, `test_r21_knowledge_federation.py` 8),
 all passing.
 
-### 6.3 Gateway snapshot baseline
+### 6.3 Cross-service wire smoke
+
+Because the repositories cannot import each other, a sandbox script started AGTools with real
+uvicorn and drove it through AGCore's `AgtoolsProvider`: manifest, DOCX and PDF `read-inline`,
+upload, hybrid search (degraded keyword + citation), validate — **12/12 checks passed**
+(`/workspace/artifacts/r21/verify_cross_service.py`).
+
+### 6.4 Gateway snapshot baseline
 
 `tests/test_gateway.py` on the R21 branch: **9 failed, 37 passed**, and the same nine test ids
 fail on a clean worktree at base `df382df` (verified by diffing the failure lists). They are the
